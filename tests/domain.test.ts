@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import plants from '../src/data/plants.json';
-import categories from '../src/data/categories.json';
+import plants from './fixtures/plants.json';
+import categories from './fixtures/categories.json';
 import { parseCatalog } from '../src/features/catalog/schema';
 import { FAVORITES_KEY, readFavorites, writeFavorites } from '../src/features/favorites/storage';
 import { buildMessage, buildWhatsAppLink } from '../src/features/contact/whatsapp';
@@ -9,13 +9,14 @@ describe('CAT: contrato', () => {
   expect(parseCatalog(plants, categories).plants).toHaveLength(3);
   expect(parseCatalog({ schemaVersion: 1, plants: [] }, categories).plants).toEqual([]);
  });
- it.each(['id', 'category', 'name', 'image', 'path', 'version'])('rechaza %s inválido con campo identificable', field => {
+ it.each(['id', 'category', 'name', 'image', 'path', 'version', 'care'])('rechaza %s inválido con campo identificable', field => {
   const data = structuredClone(plants);
   if (field === 'id') data.plants[1].id = data.plants[0].id;
   if (field === 'category') data.plants[0].categoryIds = ['inexistente'];
   if (field === 'name') data.plants[0].name = ' ';
   if (field === 'image') data.plants[0].image.alt = '';
   if (field === 'path') data.plants[0].image.src = '/../privado.png';
+  if (field === 'care') data.plants[0].care.light = '';
   if (field === 'version') data.schemaVersion = 2;
   expect(() => parseCatalog(data, categories)).toThrow(/plants.json/);
  });
@@ -41,15 +42,15 @@ describe('FAV: persistencia defensiva', () => {
  });
 });
 describe('WA: consulta explícita', () => {
- it('incluye nombre e ID una vez y preserva caracteres', () => {
+ it('incluye nombres sin IDs una vez y preserva caracteres', () => {
   const special = { ...plants.plants[0], name: 'Árbol & café + ¿sí?' };
   const message = buildMessage([special, special, plants.plants[1]], 'Hola:');
-  expect(message.split(special.id)).toHaveLength(2);
+  expect(message.split(special.name)).toHaveLength(2);
   const result = buildWhatsAppLink('12345678900', message);
   const url = new URL(result.href!);
   expect(url.origin).toBe('https://wa.me');
   expect(url.searchParams.get('text')).toBe(message);
-  expect(message).toContain(plants.plants[1].id);
+  expect(message).toContain(plants.plants[1].name);
  });
  it.each(['', '+506 123', 'javascript:alert(1)', '012345678'])('no crea destino para número inválido %s', number => expect(buildWhatsAppLink(number, 'Hola').href).toBeNull());
  it('no crea consulta vacía ni trunca mensajes largos', () => {

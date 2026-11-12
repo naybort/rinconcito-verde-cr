@@ -2,7 +2,7 @@ import type { Plant } from '../catalog/schema';
 export const MAX_URL_LENGTH = 2000;
 export function buildMessage(plants: Plant[], intro: string): string {
  const unique = [...new Map(plants.map(p => [p.id, p])).values()];
- return unique.length ? intro + '\n' + unique.map(p => '• ' + p.name + ' (' + p.id + ')').join('\n') : '';
+ return unique.length ? intro + '\n' + unique.map(p => '• ' + p.name).join('\n') : '';
 }
 export function buildWhatsAppLink(number: string, message: string): { href: string | null; reason: string } {
  if (!message.trim()) return { href: null, reason: 'Agregá una planta a favoritos para preparar tu consulta.' };

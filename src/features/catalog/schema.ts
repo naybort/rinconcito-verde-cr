@@ -1,5 +1,5 @@
 export type PlantImage = { src: string; alt: string };
-export type Plant = { id: string; name: string; categoryIds: string[]; image: PlantImage; description?: string; detailImage?: PlantImage };
+export type Plant = { id: string; name: string; categoryIds: string[]; image: PlantImage; description?: string; care?: { light: string; watering: string; humidity: string; temperature: string }; detailImage?: PlantImage };
 export type Category = { id: string; name: string };
 export type Catalog = { plants: Plant[]; categories: Category[] };
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -25,6 +25,7 @@ export function parseCatalog(plantData: unknown, categoryData: unknown): Catalog
   if (!Array.isArray(p.categoryIds) || !p.categoryIds.every(c => typeof c === 'string' && categoryIds.has(c)) || new Set(p.categoryIds).size !== p.categoryIds.length) fail(path + '.categoryIds');
   imageValid(p.image, path + '.image');
   if (p.detailImage !== undefined) imageValid(p.detailImage, path + '.detailImage');
+  if (p.care !== undefined && (!record(p.care) || !['light', 'watering', 'humidity', 'temperature'].every(key => nonempty((p.care as Record<string, unknown>)[key])))) fail(path + '.care');
   if (p.description !== undefined && !nonempty(p.description)) fail(path + '.description');
  });
  return { plants: plantData.plants as Plant[], categories: categoryData.categories as Category[] };

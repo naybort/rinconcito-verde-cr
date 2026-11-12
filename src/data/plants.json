@@ -16,6 +16,12 @@
       "detailImage": {
         "src": "/images/monstera-detail.png",
         "alt": "Detalle de una hoja verde de monstera"
+      },
+      "care": {
+        "light": "Luz indirecta abundante. Evitá el sol directo intenso.",
+        "watering": "Dejá secar la capa superior del sustrato antes de regar. Evitá el agua acumulada.",
+        "humidity": "Prefiere humedad ambiental moderada a alta.",
+        "temperature": "Mantenela en un lugar cálido, sin corrientes frías."
       }
     },
     {
@@ -28,6 +34,12 @@
       "image": {
         "src": "/images/echeveria.png",
         "alt": "Echeveria en una maceta de terracota vista desde arriba"
+      },
+      "care": {
+        "light": "Mucha luz y sol suave, con adaptación gradual.",
+        "watering": "Dejá secar el sustrato por completo entre riegos.",
+        "humidity": "Ambiente ventilado y sin exceso de humedad.",
+        "temperature": "Protegela del frío intenso y de las lluvias continuas."
       }
     },
     {
@@ -41,6 +53,12 @@
       "image": {
         "src": "/images/calathea.png",
         "alt": "Calathea de hojas redondas en una maceta oscura"
+      },
+      "care": {
+        "light": "Luz indirecta; evitá el sol directo sobre las hojas.",
+        "watering": "Mantené el sustrato ligeramente húmedo, sin encharcar.",
+        "humidity": "Prefiere humedad ambiental alta.",
+        "temperature": "Buscá un espacio cálido, sin cambios bruscos."
       }
     }
   ]

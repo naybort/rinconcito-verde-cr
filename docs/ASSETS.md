@@ -18,3 +18,6 @@ Callsites: PlantCard.tsx, PlantPhoto.tsx y App.tsx. Fotos con object-fit cover c
 La verificación de geometría renderizada queda pendiente por la limitación de navegador documentada en VALIDATION.md. El origen Figma no sustituye confirmar derechos comerciales de las fotografías.
 
 Fuentes: paquetes Fontsource DM Sans y Playfair Display; sus licencias se incluyen en los paquetes instalados por npm.
+
+## Ícono de marca actualizado (12 noviembre 2026)
+`public/rinconcito-icon.png`: derivado mediante edición generativa del flyer proporcionado por Bryan. Suculenta/maceta transparente sin datos de contacto. No es un recorte pixel-perfect. Usado en encabezado y favicon. Pendiente sustituir imagen demo Calathea, que contiene elementos de una captura del diseño.

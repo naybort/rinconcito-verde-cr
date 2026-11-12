@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "categories": [
+    {
+      "id": "interior",
+      "name": "Interior"
+    },
+    {
+      "id": "suculentas",
+      "name": "Suculentas"
+    },
+    {
+      "id": "tropicales",
+      "name": "Tropicales"
+    }
+  ]
+}

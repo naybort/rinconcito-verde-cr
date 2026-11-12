@@ -45,3 +45,10 @@ Se adapta Botanica a Rinconcito Verde CR, se añade aviso Demo y se reduce naveg
 El catálogo del Figma usa Liberation Serif y el detalle Playfair Display/DM Sans. Se mantiene serif en tarjetas con alternativa Georgia y se empaquetan Playfair/DM Sans para el resto. Puede variar el aspecto de tarjetas según la fuente serif disponible en Mac. La imagen original Calathea ya contiene pequeños textos gráficos; se conserva sin editar para esta demo. Sustituir con fotografía comercial limpia antes de entrega final.
 
 Esta es una adaptación funcional al alcance, no una afirmación de equivalencia píxel a píxel.
+
+
+## Ampliación autorizada — 12 noviembre 2026
+Bryan autorizó búsqueda, filtros V1 y cuidados. Se incorpora búsqueda por nombre insensible a tildes/mayúsculas y filtro único por categoría, con limpieza y estado vacío. Conserva estado al volver desde detalle durante la sesión. Cuidados por planta en JSON (luz, riego, humedad, temperatura), identificados como ejemplos orientativos. WhatsApp confirmado: +506 71160290, consulta de planta individual y favoritos sin IDs internos. Footer Powered by Vision Mind enlaza a https://visionmind-ai.com/. Tipografía unificada DM Sans y copies revisados. Ícono suministrado por Bryan. Sin cuentas, pagos, guía editorial independiente ni publicación remota.
+
+## Ajuste final autorizado
+Por corrección explícita de Bryan se conservan las tres plantas y fotos de prueba. Se retira solo aviso/badge demo. Footer debajo del menú no fijo y sin superposición; iconos nuevos de corazón y cuidados. Datos reales vendrán después.

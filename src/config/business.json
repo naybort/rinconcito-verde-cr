@@ -1,6 +1,7 @@
 {
   "name": "Rinconcito Verde CR",
-  "demo": true,
-  "whatsappNumber": "",
-  "messageIntro": "Hola, me interesan estas plantas:"
+  "demo": false,
+  "whatsappNumber": "50671160290",
+  "messageIntro": "Hola, me interesan estas plantas:",
+  "poweredByUrl": "https://visionmind-ai.com/"
 }

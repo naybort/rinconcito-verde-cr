@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Box, Button, Chip, Container, Divider, IconButton, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Container, Divider, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
+import { PlantIcon } from '../shared/PlantIcon';
 import business from '../config/business.json';
 import { catalog } from '../features/catalog/data';
 import { PlantCard } from '../features/catalog/PlantCard';
@@ -14,18 +15,25 @@ function useRoute() {
 }
 export default function App() {
  const route = useRoute();
+ const [query, setQuery] = useState('');
+ const [category, setCategory] = useState('');
+ const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').trim();
+ const filteredPlants = catalog.plants.filter(p => (!category || p.categoryIds.includes(category)) && normalize(p.name).includes(normalize(query)));
+ const clearFilters = () => { setQuery(''); setCategory(''); };
  const favorites = useFavorites(ids);
  const heading = useRef<HTMLHeadingElement>(null);
- const initial = useRef(true);
+ const previousRoute = useRef(route);
  const isFavorites = route === '#/favoritos';
  const isDetail = route.startsWith('#/plantas/');
  const plant = isDetail ? catalog.plants.find(p => '#/plantas/' + p.id === route) : undefined;
  const selectedPlants = catalog.plants.filter(p => favorites.ids.includes(p.id));
  const message = buildMessage(selectedPlants, business.messageIntro);
+ const plantContact = plant ? buildWhatsAppLink(business.whatsappNumber, buildMessage([plant], business.messageIntro)) : null;
  const contact = buildWhatsAppLink(business.whatsappNumber, message);
  useEffect(() => {
   document.title = (plant?.name || (isFavorites ? 'Favoritos' : 'Catálogo')) + ' · ' + business.name;
-  if (initial.current) { initial.current = false; return; }
+  if (previousRoute.current === route) return;
+  previousRoute.current = route;
   window.scrollTo(0, 0);
   heading.current?.focus({ preventScroll: true });
  }, [route, plant, isFavorites]);
@@ -34,41 +42,58 @@ export default function App() {
   <Box component="a" href="#contenido" sx={{ position: 'fixed', top: -100, left: 16, zIndex: 2000, bgcolor: 'white', p: 2, '&:focus': { top: 8 } }} onClick={event => { event.preventDefault(); heading.current?.focus(); }}>Saltar al contenido</Box>
   <Box component="header" sx={{ bgcolor: 'background.default', borderBottom: '1px solid #e7ece8' }}>
    <Container maxWidth="lg" sx={{ py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-    <Typography component="a" href="#/" sx={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 700, fontSize: { xs: 20, md: 26 }, textDecoration: 'none' }}>{business.name}</Typography>
-    <Chip label="Demo" size="small" variant="outlined" />
+    <Typography component="a" href="#/" sx={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, fontSize: { xs: 18, md: 26 }, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}><Box component="img" src="/rinconcito-icon.png" alt="" sx={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />{business.name}</Typography>
    </Container>
   </Box>
-  <Container maxWidth="lg" sx={{ py: 1.5 }}><Typography variant="body2" color="text.secondary">Catálogo de demostración · Imágenes y plantas de ejemplo, sin disponibilidad comercial confirmada.</Typography></Container>
   {favorites.warning && <Container maxWidth="lg"><Alert severity="info" sx={{ my: 1 }}>{favorites.warning}</Alert></Container>}
-  <Box component="main" id="contenido" sx={{ pb: '120px' }}>
+  <Box component="main" id="contenido" sx={{ pb: 6, minHeight: 'calc(100dvh - 230px)' }}>
    {isDetail && plant ? <>
     <Box sx={{ maxWidth: 896, mx: 'auto', position: 'relative' }}>
-     <PlantPhoto key={plant.id} image={plant.detailImage || plant.image} height={{ xs: 530, md: 470 }} eager />
+     <PlantPhoto key={plant.id} image={plant.detailImage || plant.image} height={{ xs: 360, md: 470 }} eager />
      <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(0deg,#f9f9f8,transparent 50%)', pointerEvents: 'none' }} />
      <IconButton component="a" href="#/" aria-label="Volver al catálogo" sx={{ position: 'absolute', top: 20, left: 20, width: 48, height: 48, bgcolor: 'rgba(255,255,255,.8)', backdropFilter: 'blur(12px)' }}><img src="/icons/back.svg" alt="" /></IconButton>
     </Box>
     <Box sx={{ maxWidth: 896, mx: 'auto', px: { xs: '20px', md: 4 }, position: 'relative', mt: '-48px' }}>
      <Stack direction="row" sx={{ mb: 1, gap: 1, flexWrap: "wrap" }}>{catalog.categories.filter(c => plant.categoryIds.includes(c.id)).map(c => <Chip key={c.id} label={c.name} size="small" sx={{ bgcolor: '#ccd8d0' }} />)}</Stack>
      <Typography {...titleProps} component="h1" variant="h1" sx={{ overflowWrap: 'anywhere' }}>{plant.name}</Typography>
-     <Typography color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>Ficha de demostración · {plant.id}</Typography>
+
      <Typography color="text.secondary" sx={{ mt: 3, lineHeight: '26px', maxWidth: 650 }}>{plant.description || 'Consultá al vivero para conocer más sobre esta planta.'}</Typography>
-     <Button variant="contained" fullWidth aria-pressed={favorites.ids.includes(plant.id)} onClick={() => favorites.toggle(plant.id)} startIcon={favorites.ids.includes(plant.id) ? undefined : <img src="/icons/plus.svg" alt="" />} sx={{ mt: 5, py: 3 }}>
+     <Box component="section" aria-labelledby="cuidados-heading" sx={{ mt: 4 }}>
+      <Typography id="cuidados-heading" component="h2" variant="h3">Cómo cuidar tu planta</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>Estos cuidados pueden variar según tu espacio y clima. Consultanos si tenés dudas.</Typography>
+      {plant.care ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+       {([['light', 'Luz'], ['watering', 'Riego'], ['humidity', 'Humedad'], ['temperature', 'Temperatura']] as const).map(([key, label]) => <Paper key={key} variant="outlined" sx={{ p: 2.5, bgcolor: '#eef3ee' }}><Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', color: 'primary.main' }}><PlantIcon kind={key} /><Typography component="h3" sx={{ fontWeight: 700 }}>{label}</Typography></Stack><Typography color="text.secondary" sx={{ mt: 1 }}>{plant.care![key]}</Typography></Paper>)}
+      </Box> : <Typography color="text.secondary">Consultanos por WhatsApp para conocer sus cuidados.</Typography>}
+     </Box>
+     <Button variant="contained" fullWidth aria-pressed={favorites.ids.includes(plant.id)} onClick={() => favorites.toggle(plant.id)} startIcon={<PlantIcon kind="heart" filled={favorites.ids.includes(plant.id)} />} sx={{ mt: 5, py: 3 }}>
       {favorites.ids.includes(plant.id) ? 'Quitar de favoritos' : 'Añadir a favoritos'}
      </Button>
+     {plantContact?.href && <Button component="a" href={plantContact.href} target="_blank" rel="noopener noreferrer" fullWidth variant="outlined" sx={{ mt: 2 }}>Consultar esta planta por WhatsApp</Button>}
      <Button component="a" href="#/favoritos" fullWidth sx={{ mt: 1 }}>Ver mis favoritos ({favorites.ids.length})</Button>
     </Box>
    </> : isDetail || !['#/', '#/favoritos'].includes(route) ? <Container maxWidth="md" sx={{ py: 5 }}><Typography {...titleProps} component="h1" variant="h2">No encontramos esa página</Typography><Typography sx={{ my: 2 }}>La planta puede haber cambiado o ya no formar parte del catálogo.</Typography><Button component="a" href="#/" variant="contained">Volver al catálogo</Button></Container> :
    <Container maxWidth="lg" sx={{ px: { xs: '20px', sm: 3 }, pt: 3 }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 3, justifyContent: "space-between", gap: 1 }}>
-     <Box><Typography {...titleProps} component="h1" variant="h2">{isFavorites ? 'Tus favoritos' : 'Explorá nuestro catálogo'}</Typography><Typography color="text.secondary" sx={{ mt: 1 }}>{isFavorites ? 'Tu selección se guarda en este navegador.' : 'Un rincón verde empieza con una planta.'}</Typography></Box>
-     <Typography color="text.secondary" sx={{ alignSelf: { sm: 'end' } }}>{(isFavorites ? selectedPlants : catalog.plants).length} plantas</Typography>
+     <Box><Typography {...titleProps} component="h1" variant="h2">{isFavorites ? 'Tus favoritos' : 'Encontrá tu próxima planta'}</Typography><Typography color="text.secondary" sx={{ mt: 1 }}>{isFavorites ? 'Tu selección se guarda en este navegador.' : 'Explorá el catálogo, guardá tus favoritas y consultanos por WhatsApp.'}</Typography></Box>
+     <Typography color="text.secondary" sx={{ alignSelf: { sm: 'end' } }}>{(isFavorites ? selectedPlants : filteredPlants).length} plantas</Typography>
     </Stack>
-    {(isFavorites ? selectedPlants : catalog.plants).length === 0 ? <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
-     <Typography variant="h3" component="h2">{isFavorites ? 'Tu rincón verde está por empezar' : 'Pronto habrá nuevas plantas'}</Typography>
-     <Typography color="text.secondary" sx={{ my: 2 }}>{isFavorites ? 'Tocá el corazón de una planta para guardarla aquí y preparar una consulta.' : 'Volvé más tarde para explorar el catálogo.'}</Typography>
+    {!isFavorites && catalog.plants.length > 0 && <Box component="section" aria-label="Buscar y filtrar plantas" sx={{ mb: 4 }}>
+     <TextField fullWidth label="Buscar una planta" placeholder="Por ejemplo, Monstera" value={query} onChange={event => setQuery(event.target.value)} slotProps={{ htmlInput: { type: 'search' } }} />
+     <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 2 }}>
+      <Button variant={!category ? 'contained' : 'outlined'} aria-pressed={!category} onClick={() => setCategory('')}>Todas</Button>
+      {catalog.categories.map(c => <Button key={c.id} variant={category === c.id ? 'contained' : 'outlined'} aria-pressed={category === c.id} onClick={() => setCategory(c.id)}>{c.name}</Button>)}
+      {(query || category) && <Button onClick={clearFilters}>Limpiar filtros</Button>}
+     </Stack>
+     <Typography role="status" variant="body2" color="text.secondary" sx={{ mt: 2 }}>{filteredPlants.length} {filteredPlants.length === 1 ? 'planta encontrada' : 'plantas encontradas'}</Typography>
+    </Box>}
+    {(isFavorites ? selectedPlants : filteredPlants).length === 0 ? <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
+     <Typography variant="h3" component="h2">{isFavorites ? 'Tu rincón verde está por empezar' : (catalog.plants.length ? 'No encontramos plantas con esa búsqueda' : 'Nuestro catálogo está por florecer')}</Typography>
+     <Typography color="text.secondary" sx={{ my: 2 }}>{isFavorites ? 'Tocá el corazón de una planta para guardarla aquí y preparar una consulta.' : (catalog.plants.length ? 'Probá con otro nombre o quitá los filtros para ver todas las plantas.' : 'Pronto vas a encontrar nuestras plantas aquí. Mientras tanto, podés consultarnos por WhatsApp.')}</Typography>
+     {!isFavorites && catalog.plants.length > 0 && <Button onClick={clearFilters} variant="outlined">Ver todas las plantas</Button>}
+     {!isFavorites && catalog.plants.length === 0 && <Button component="a" href={buildWhatsAppLink(business.whatsappNumber, 'Hola, quisiera consultar sobre las plantas de Rinconcito Verde CR.').href!} target="_blank" rel="noopener noreferrer" variant="contained">Consultar por WhatsApp</Button>}
      {isFavorites && <Button component="a" href="#/" variant="contained">Explorar plantas</Button>}
     </Paper> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 3 }}>
-     {(isFavorites ? selectedPlants : catalog.plants).map(p => <PlantCard key={p.id} plant={p} categories={catalog.categories} selected={favorites.ids.includes(p.id)} toggle={favorites.toggle} />)}
+     {(isFavorites ? selectedPlants : filteredPlants).map(p => <PlantCard key={p.id} plant={p} categories={catalog.categories} selected={favorites.ids.includes(p.id)} toggle={favorites.toggle} />)}
     </Box>}
     {isFavorites && selectedPlants.length > 0 && <Paper component="section" aria-labelledby="consulta-heading" elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, mt: 4, bgcolor: '#eef3ee', borderRadius: '16px' }}>
      <Typography id="consulta-heading" component="h2" variant="h3">Consultá por tus plantas</Typography>
@@ -79,11 +104,14 @@ export default function App() {
     </Paper>}
    </Container>}
   </Box>
-  <Paper component="nav" aria-label="Navegación principal" square elevation={0} sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, bgcolor: '#f9f9f8', boxShadow: '0 -4px 10px rgba(27,67,50,.08)', pb: 'env(safe-area-inset-bottom)', zIndex: 1100 }}>
-   <Stack direction="row" sx={{ p: 1, justifyContent: "center", gap: 3 }}>
-    <Button component="a" href="#/" aria-current={!isFavorites ? 'page' : undefined} startIcon={<img src="/icons/explore.svg" alt="" />} sx={{ bgcolor: !isFavorites ? 'primary.light' : undefined, px: 3 }}>Catálogo</Button>
-    <Button component="a" href="#/favoritos" aria-current={isFavorites ? 'page' : undefined} sx={{ bgcolor: isFavorites ? 'primary.light' : undefined, px: 3 }}>Favoritos ({favorites.ids.length})</Button>
+  <Paper component="nav" aria-label="Navegación principal" square elevation={0} sx={{ position: 'relative', bgcolor: '#f9f9f8', boxShadow: '0 -4px 10px rgba(27,67,50,.08)',  zIndex: 1100 }}>
+   <Stack direction="row" sx={{ p: 1, justifyContent: "center", gap: { xs: 0, sm: 3 } }}>
+    <Button component="a" href="#/" aria-current={!isFavorites ? 'page' : undefined} startIcon={<img src="/icons/explore.svg" alt="" />} sx={{ bgcolor: !isFavorites ? 'primary.light' : undefined, px: { xs: 2, sm: 3 } }}>Catálogo</Button>
+    <Button component="a" href="#/favoritos" aria-current={isFavorites ? 'page' : undefined} startIcon={<PlantIcon kind="heart" filled={isFavorites} />} sx={{ bgcolor: isFavorites ? 'primary.light' : undefined, px: { xs: 2, sm: 3 } }}>Favoritos ({favorites.ids.length})</Button>
    </Stack>
   </Paper>
+  <Box component="footer" sx={{ py: 2, px: 2, pb: 'max(16px, env(safe-area-inset-bottom))', textAlign: 'center', bgcolor: '#eef3ee' }}>
+   <Typography variant="body2" color="text.secondary">Powered by <Box component="a" href={business.poweredByUrl} target="_blank" rel="noopener noreferrer" sx={{ fontWeight: 700 }}>Vision Mind</Box></Typography>
+  </Box>
  </>;
 }

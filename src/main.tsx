@@ -5,7 +5,6 @@ import '@fontsource/dm-sans/400.css';
 import '@fontsource/dm-sans/500.css';
 import '@fontsource/dm-sans/700.css';
 import '@fontsource/dm-sans/400-italic.css';
-import '@fontsource/playfair-display/700.css';
 import App from './app/App';
 import { theme } from './app/theme';
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><ThemeProvider theme={theme}><CssBaseline /><App /></ThemeProvider></React.StrictMode>);
