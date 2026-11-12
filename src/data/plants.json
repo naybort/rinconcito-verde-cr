@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "plants": [
+    {
+      "id": "demo-monstera",
+      "name": "Monstera Deliciosa",
+      "categoryIds": [
+        "interior",
+        "tropicales"
+      ],
+      "description": "Una presencia verde de hojas amplias para inspirar tu próximo rincón. Esta ficha es una muestra de diseño; el vivero confirmará la información de sus plantas.",
+      "image": {
+        "src": "/images/monstera.png",
+        "alt": "Monstera de hojas grandes en una maceta blanca"
+      },
+      "detailImage": {
+        "src": "/images/monstera-detail.png",
+        "alt": "Detalle de una hoja verde de monstera"
+      }
+    },
+    {
+      "id": "demo-echeveria",
+      "name": "Echeveria Elegans",
+      "categoryIds": [
+        "suculentas"
+      ],
+      "description": "Una pequeña roseta de tonos suaves. Esta ficha de demostración permite explorar el catálogo y probar tus favoritos; no representa disponibilidad comercial.",
+      "image": {
+        "src": "/images/echeveria.png",
+        "alt": "Echeveria en una maceta de terracota vista desde arriba"
+      }
+    },
+    {
+      "id": "demo-calathea",
+      "name": "Calathea Orbifolia",
+      "categoryIds": [
+        "interior",
+        "tropicales"
+      ],
+      "description": "Follaje con formas y matices para descubrir. Usamos esta imagen del diseño como muestra; las fotografías y fichas definitivas se cargarán con el catálogo real.",
+      "image": {
+        "src": "/images/calathea.png",
+        "alt": "Calathea de hojas redondas en una maceta oscura"
+      }
+    }
+  ]
+}
