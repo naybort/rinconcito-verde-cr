@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadEnv } from 'vite';
-import { productionProject as project } from './production-config.ts';
+import { productionProject as project, projectGcloudArgs } from './production-config.ts';
 
 import { appCheckProviderName, type AppCheckProviderName } from '../src/lib/appCheckConfig.ts';
 
@@ -67,7 +67,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const config = loadEnv('production', root, 'VITE_');
   if (config.VITE_FIREBASE_PROJECT_ID !== project) throw new Error('Ejecutar configure:online para el proyecto confirmado antes de comprobar App Check.');
   const run = (args: string[]) => {
-   const result = spawnSync('gcloud', [...args, '--project', project, '--quiet'], { cwd: root, shell: false, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
+   const result = spawnSync('gcloud', projectGcloudArgs(args), { cwd: root, shell: false, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
    if (result.error || result.status !== 0) throw new Error('gcloud no pudo completar la consulta. Revisar instalación, sesión y permisos del proyecto. No se muestran tokens ni datos de credenciales.');
    return result.stdout.trim();
   };

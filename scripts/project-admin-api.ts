@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { productionProject as project } from './production-config.ts';
+import { productionProject as project, projectGcloudArgs } from './production-config.ts';
 export const database = `projects/${project}/databases/(default)`;
 export type Value = { stringValue?: string; booleanValue?: boolean; integerValue?: string; doubleValue?: number; nullValue?: null; arrayValue?: { values: Value[] }; mapValue?: { fields: Record<string, Value> } };
 export type Document = { name: string; updateTime?: string; fields?: Record<string, Value> };
@@ -26,7 +26,7 @@ export function gcloudSession(root: string): () => string {
  let token = ''; let expires = 0;
  return () => {
   if (token && Date.now() < expires) return token;
-  const result = spawnSync('gcloud', ['auth', 'print-access-token', '--project', project, '--quiet'], { cwd: root, shell: false, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const result = spawnSync('gcloud', projectGcloudArgs(['auth', 'print-access-token']), { cwd: root, shell: false, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   if (result.error || result.status !== 0) throw new Error('No se pudo usar la sesión gcloud. Revisar login y permisos; no se muestran credenciales.');
   token = result.stdout.trim(); expires = Date.now() + 30000;
   if (!token || /\s/.test(token)) throw new Error('gcloud no devolvió una sesión válida.');

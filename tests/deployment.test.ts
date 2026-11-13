@@ -87,7 +87,7 @@ it('el modo check verifica sin publicar ni crear preparación de Functions', asy
  expect(context.calls.some(c => c.args.includes('deploy'))).toBe(false);
  expect(existsSync(join(root, '.firebase'))).toBe(false);
 });
-it.each(['projects:list', 'check', 'build:backend'])('un fallo en %s impide toda publicación', async fail => {
+it.each(['projects:list', 'billing', 'check', 'build:backend'])('un fallo en %s impide toda publicación', async fail => {
  const context = runtime({ fail }); await expect(deployOnline(context)).rejects.toThrow('simulated');
  expect(context.calls.some(c => c.args.includes('deploy'))).toBe(false);
 });
@@ -165,4 +165,17 @@ it('el parser real de Firebase acepta la configuración de Functions y rechaza n
  const contents = Object.entries(config).map(([key, value]) => key + '=' + value).join('\n') + '\n';
  expect(firebaseEnv.parseStrict(contents)).toEqual(config);
  expect(() => firebaseEnv.parseStrict(contents + 'FUNCTION_REGION=us-central1\n')).toThrow();
+});
+
+it('fija proyecto y cuota en cada consulta gcloud sin cambiar configuración ni facturación', async () => {
+ const context = runtime();
+ await deployOnline({ ...context, checkOnly: true, ambient: { CLOUDSDK_BILLING_QUOTA_PROJECT: 'fixture-other-quota-project' } });
+ const queries = context.calls.filter(call => call.command === 'gcloud');
+ expect(queries.map(call => call.args[0])).toEqual(['billing', 'storage', 'projects', 'auth', 'secrets']);
+ for (const query of queries) {
+  expect(query.args[query.args.indexOf('--project') + 1]).toBe('rinconcito-verde-cr');
+  expect(query.args[query.args.indexOf('--billing-project') + 1]).toBe('rinconcito-verde-cr');
+  expect(query.args).toContain('--quiet');
+ }
+ expect(context.calls.some(call => call.args.some(arg => ['link', 'enable', 'config', 'deploy'].includes(arg)))).toBe(false);
 });

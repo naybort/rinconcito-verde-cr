@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { loadEnv } from 'vite';
 import { checkAppCheck } from './check-appcheck.ts';
-import { productionEnvironment, productionAIConfig, productionProject as project, productionOrigin as origin, firebaseResult } from './production-config.ts';
+import { productionEnvironment, productionAIConfig, projectGcloudArgs, productionProject as project, productionOrigin as origin, firebaseResult } from './production-config.ts';
 
 export type Command = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; capture: boolean };
 type Run = (command: Command) => string;
@@ -23,26 +23,27 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
  const env = productionEnvironment(raw, ambient);
  const aiConfig = productionAIConfig(ai);
  const command = (program: string, args: string[], capture = false) => run({ command: program, args, cwd: root, env, capture });
+ const gcloud = (args: string[]) => command('gcloud', projectGcloudArgs(args), true);
  const firebase = (args: string[], capture = false) => command(process.execPath, [join(root, 'node_modules/firebase-tools/lib/bin/firebase.js'), ...args, '--project', project, '--non-interactive'], capture);
  const json = <T,>(args: string[]) => firebaseResult<T>(firebase([...args, '--json'], true));
  log('Comprobando sesión y configuración en ' + project + '…');
  const projects = json<{ projectId: string }[]>(['projects:list']);
  if (!projects.some(item => item.projectId === project)) throw new Error('La sesión Firebase no tiene acceso al proyecto confirmado.');
- const billing = JSON.parse(command('gcloud', ['billing', 'projects', 'describe', project, '--project', project, '--format=json', '--quiet'], true));
+ const billing = JSON.parse(gcloud(['billing', 'projects', 'describe', project, '--format=json']));
  if (billing.billingEnabled !== true) throw new Error('El backend requiere Blaze ya habilitado. Este comando no vincula facturación.');
  const app = json<{ sdkConfig: Record<string, string> }>(['apps:sdkconfig', 'WEB', raw.VITE_FIREBASE_APP_ID]).sdkConfig;
  for (const [field, key] of [['projectId', 'VITE_FIREBASE_PROJECT_ID'], ['appId', 'VITE_FIREBASE_APP_ID'], ['apiKey', 'VITE_FIREBASE_API_KEY'], ['authDomain', 'VITE_FIREBASE_AUTH_DOMAIN'], ['storageBucket', 'VITE_FIREBASE_STORAGE_BUCKET']]) {
   if (app?.[field] !== raw[key]) throw new Error('La configuración Firebase no coincide en ' + key + '.');
  }
  json(['firestore:databases:get', '(default)']);
- const bucket = JSON.parse(command('gcloud', ['storage', 'buckets', 'describe', 'gs://' + raw.VITE_FIREBASE_STORAGE_BUCKET, '--project', project, '--raw', '--format=json', '--quiet'], true)) as { name?: string; cors?: { origin?: string[]; method?: string[] }[] };
+ const bucket = JSON.parse(gcloud(['storage', 'buckets', 'describe', 'gs://' + raw.VITE_FIREBASE_STORAGE_BUCKET, '--raw', '--format=json'])) as { name?: string; cors?: { origin?: string[]; method?: string[] }[] };
  if (bucket.name !== raw.VITE_FIREBASE_STORAGE_BUCKET) throw new Error('Storage no confirmó el bucket esperado.');
  for (const site of [origin, `https://${project}.firebaseapp.com`]) {
   if (!bucket.cors?.some(rule => rule.method?.includes('GET') && (rule.origin?.includes(site) || rule.origin?.includes('*')))) throw new Error('Falta CORS para descargar fotografías desde ' + site + '. Revisar storage.cors.json y docs/DEPLOY-ONLINE.md antes de publicar.');
  }
- const projectNumber = command('gcloud', ['projects', 'describe', project, '--project', project, '--format=value(projectNumber)', '--quiet'], true).trim();
- await checkAppCheck({ appId: raw.VITE_FIREBASE_APP_ID, projectNumber, provider: raw.VITE_FIREBASE_APPCHECK_PROVIDER, expectedSiteKey: raw.VITE_FIREBASE_APPCHECK_SITE_KEY, getAccessToken: () => command('gcloud', ['auth', 'print-access-token', '--project', project, '--quiet'], true), fetcher });
- const secret = JSON.parse(command('gcloud', ['secrets', 'versions', 'describe', 'latest', '--secret=OPENAI_API_KEY', '--project', project, '--format=json', '--quiet'], true));
+ const projectNumber = gcloud(['projects', 'describe', project, '--format=value(projectNumber)']).trim();
+ await checkAppCheck({ appId: raw.VITE_FIREBASE_APP_ID, projectNumber, provider: raw.VITE_FIREBASE_APPCHECK_PROVIDER, expectedSiteKey: raw.VITE_FIREBASE_APPCHECK_SITE_KEY, getAccessToken: () => gcloud(['auth', 'print-access-token']), fetcher });
+ const secret = JSON.parse(gcloud(['secrets', 'versions', 'describe', 'latest', '--secret=OPENAI_API_KEY', '--format=json']));
  if (secret.state !== 'ENABLED') throw new Error('OPENAI_API_KEY necesita una versión habilitada en Secret Manager. No se leyó el contenido del secreto.');
  const functions = json<{ id: string; region: string; platform: string; codebase?: string; labels?: Record<string, string> }[]>(['functions:list']);
  for (const fn of functions.filter(item => ['adminCommand', 'processAI'].includes(item.id))) {

@@ -1,6 +1,10 @@
 import { appCheckProviderName } from '../src/lib/appCheckConfig.ts';
 export const productionProject = 'rinconcito-verde-cr';
 export const productionOrigin = `https://${productionProject}.web.app`;
+// Scope resource selection and request quota separately; never change the operator's global config.
+export function projectGcloudArgs(args: string[]) {
+ return [...args, '--project', productionProject, '--billing-project', productionProject, '--quiet'];
+}
 const publicKeys = [
  'VITE_FIREBASE_MODE', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_API_KEY',
  'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_APP_ID',

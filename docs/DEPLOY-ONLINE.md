@@ -16,7 +16,9 @@ El propietario autorizó el despliegue completo, las pruebas reales de IA y la v
 
 **La publicación de Functions/Hosting y las pruebas reales siguen pendientes.** El propietario confirmó en su Mac: APIs Firestore/App Check habilitadas; base `(default)` creada en `us-central1`, edición Standard y modo Native; bucket `rinconcito-verde-cr.firebasestorage.app` creado; dos cuentas administrativas creadas en Authentication; versión 1 de `OPENAI_API_KEY` creada en Secret Manager. También reportó configurados los modelos y la clave pública de App Check. Después confirmó que la app está registrada con **reCAPTCHA Enterprise**, mientras el cliente y la comprobación anteriores esperaban v3; esa diferencia detenía la preparación.
 
-Después de sincronizar Enterprise, el propietario completó el bloque de CORS, migración de catálogo, asignación de roles y publicación de reglas Firestore. La lectura HTTPS anónima confirmó las cuatro plantas y tres categorías con sus IDs originales. También ejecutó la activación de APIs de Functions y el primer `release:online`: pasó las comprobaciones productivas iniciales, pero se detuvo en una prueba de configuración antes de publicar Functions, Storage o Hosting. La prueba heredaba variables Vite del despliegue que prevalecían sobre su archivo temporal. Se reprodujo el fallo con valores ficticios y se aisló ese entorno de prueba; se conservan las comprobaciones reales y la configuración productiva. En el intento siguiente, las pruebas y compilaciones avanzaron y se completó la etapa de reglas/índices antes de preparar Functions. Firebase rechazó la variable reservada `FUNCTION_REGION` del archivo temporal; el worker, admin y Hosting todavía no se publicaron en ese intento. La configuración generada ahora contiene solo las opciones IA y modelos; ambas funciones declaran `us-central1` directamente en código. El parser real de la versión instalada de Firebase CLI valida el archivo en las pruebas, sin llamadas remotas. También se inspeccionaron las definiciones compiladas de ambas funciones con un proyecto demo: mantienen `us-central1` aunque el proceso herede otra `FUNCTION_REGION`, sin invocar los handlers. [Variables reservadas](https://firebase.google.com/docs/functions/config-env#reserved_environment_variables).
+El propietario completó Enterprise, CORS, migración del catálogo, asignación de roles y publicación de reglas/índices Firestore y Storage. La lectura HTTPS anónima confirmó las cuatro plantas y tres categorías con sus IDs originales. Las pruebas y compilaciones ya pasan en el entorno de despliegue. Ambas funciones mantienen `us-central1` en código y el archivo generado pasa el parser real de Firebase CLI, sin variables reservadas.
+
+El último intento de crear `processAI` subió el código y asignó al runtime acceso a `OPENAI_API_KEY`, pero falló al crear el disparador de Eventarc. Las consultas posteriores confirmaron `roles/eventarc.serviceAgent` en el agente correcto, sin condición, y `404` para `processAI`: no había función creada. El reintento se detuvo antes de publicar por `429` en la consulta Cloud Billing, consumiendo cuota del proyecto compartido del cliente gcloud. Esta entrega fija el proyecto de cuota en cada consulta gcloud; falta confirmar la consulta real y completar Functions, Hosting y QA con IA.
 
 No hay un presupuesto mensual configurado ni se supone un límite monetario concreto.
 
@@ -33,12 +35,22 @@ npm ci
 npm --prefix functions ci
 npx firebase login
 gcloud auth login
-gcloud billing projects describe rinconcito-verde-cr --format='value(billingEnabled)'
+gcloud billing projects describe rinconcito-verde-cr --project=rinconcito-verde-cr --billing-project=rinconcito-verde-cr --format='value(billingEnabled)'
 ```
 
 Las sesiones deben tener permisos sobre este proyecto. Functions requiere Blaze. Si la consulta devuelve `False`, un operador debe vincular únicamente la cuenta autorizada con `gcloud billing projects link`; la cuenta concreta se mantiene fuera de Git. El script de despliegue solo verifica el estado, nunca cambia la cuenta vinculada. [Requisito de Functions](https://firebase.google.com/docs/functions/get-started) y [comando de vinculación](https://cloud.google.com/sdk/gcloud/reference/billing/projects/link).
 
-Si Cloud Billing responde `429 RATE_LIMIT_EXCEEDED`, no repetir el comando en un bucle. El límite indicado es de solicitudes por minuto. Se puede completar la vinculación autorizada desde Firebase Console → actualizar plan → Blaze y verificar después `billingEnabled`. Si también falla la consola, esperar a que se restablezca la cuota y revisar el servicio; no es un error de la clave OpenAI. [Cambiar al plan Blaze](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans).
+`--project` selecciona el destino del comando; `--billing-project` selecciona el proyecto de cuota de la petición. El despliegue, la comprobación App Check y la sesión de preparación fijan ambos a `rinconcito-verde-cr` mediante argumentos, sin cambiar la configuración global de gcloud ni la cuenta de facturación vinculada. Las peticiones REST usan además `X-Goog-User-Project` con ese mismo proyecto. El operador necesita `serviceusage.services.use`, permiso que ya utiliza la comprobación de App Check. [Configuración oficial del proyecto de cuota](https://cloud.google.com/docs/quotas/set-quota-project).
+
+Si Cloud Billing responde `429 RATE_LIMIT_EXCEEDED`, revisar `consumer` en el error. El proyecto `32555940559` pertenece al cliente compartido de gcloud; no es el número de este proyecto. Usar la consulta anterior con `--billing-project` explícito. El fallo no significa que Blaze esté desactivado y no requiere volver a vincularlo. Si el límite corresponde al proyecto propio, esperar la ventana de cuota y revisar uso antes de reintentar; el script se detiene y no reintenta en bucle.
+
+Si al seleccionar la cuota propia aparece `SERVICE_DISABLED` para `cloudbilling.googleapis.com`, habilitar únicamente esa API y volver a consultar tras su propagación:
+
+```bash
+gcloud services enable cloudbilling.googleapis.com --project=rinconcito-verde-cr --billing-project=rinconcito-verde-cr
+```
+
+Este comando habilita la API de consulta; no vincula una cuenta de facturación. Si realmente `billingEnabled` devuelve `False`, completar la vinculación previamente autorizada desde Firebase Console → actualizar plan → Blaze y verificar el estado. [Cambiar al plan Blaze](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans).
 
 ### 2. Registrar la app y guardar su configuración pública
 
@@ -221,16 +233,29 @@ La calidad visual de la propuesta y exactitud botánica/fuentes requieren revisi
 
 ## Fallos, reversión y pruebas de preparación
 
+### Primer disparador de Eventarc
+
+Si aparece `Permission denied while using the Eventarc Service Agent` al crear `processAI`, inspeccionar el rol del agente y el recurso antes de repetir:
+
+```bash
+gcloud projects get-iam-policy rinconcito-verde-cr --billing-project=rinconcito-verde-cr --flatten='bindings[].members' --filter='bindings.role=roles/eventarc.serviceAgent AND bindings.members=serviceAccount:service-673742120988@gcp-sa-eventarc.iam.gserviceaccount.com' --format='table(bindings.role,bindings.members,bindings.condition.expression)'
+gcloud functions describe processAI --gen2 --region=us-central1 --project=rinconcito-verde-cr --billing-project=rinconcito-verde-cr --format='yaml(name,state,stateMessages,labels,eventTrigger.trigger)'
+```
+
+El rol debe pertenecer al agente Eventarc de este proyecto. Google documenta que su propagación inicial puede tardar unos siete minutos. Con el rol correcto y la función ausente, dejar pasar ese intervalo desde el error y ejecutar `npm run release:online` una vez. Si existe un recurso parcial, revisar su estado, generación, región y codebase antes de actualizarlo; no eliminarlo a ciegas. Si el rol falta, revisar específicamente el agente y su permiso, sin conceder roles de agente a usuarios. [Diagnóstico oficial de Eventarc](https://cloud.google.com/eventarc/docs/troubleshooting).
+
+### Publicación parcial y verificación
+
 Antes de publicar, un fallo detiene el proceso. Durante el despliegue pueden quedar etapas completadas: reglas, worker, admin y Hosting no forman una transacción global. El informe marca `incomplete` y registra las etapas confirmadas. Si falla el backend, no se publica Hosting; si falla la comparación HTTPS después de Hosting, la publicación podría haber terminado y requiere inspección. No repetir a ciegas.
 
 `release:online` separa los informes: un despliegue correcto puede ir seguido de una prueba real fallida. Revisar ambos; no interpretar solo `status: deployed` como validación de IA.
 
 El frontend puede revertirse a una release Hosting verificada. Functions/reglas requieren revisión independiente; revertir Hosting no revierte datos ni permisos. No resetear el checkout del usuario ni restaurar inventario desde JSON.
 
-Validación de esta entrega: `npm run check` aprobado con **184 pruebas en 20 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene un aviso por un chunk mayor de 500 kB. La corrección de aislamiento se comprueba ejecutando `npm run check` con variables públicas ficticias inyectadas mediante `productionEnvironment`, como hace el despliegue. Los casos de App Check cubren entorno vacío, cloud y emuladores; no requieren configuración real ni acceso remoto.
+Validación de esta entrega: `npm run check` aprobado con **186 pruebas en 20 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene un aviso por un chunk mayor de 500 kB. La corrección de aislamiento se comprueba ejecutando `npm run check` con variables públicas ficticias inyectadas mediante `productionEnvironment`, como hace el despliegue. Los casos de App Check cubren entorno vacío, cloud y emuladores; no requieren configuración real ni acceso remoto.
 
 La preparación añade pruebas de migración completa, fotos adicionales, conservación de registros existentes, pares incompletos, concurrencia, acceso en ambos sistemas, cuentas ausentes/deshabilitadas, claims existentes y fallos parciales. `npm run prepare:online -- --help` también se ejecutó sin acceso a servicios.
 
 La comprobación App Check cubre v3 y Enterprise, coincidencia de la clave pública, pertenencia a la app/proyecto, fallos HTTP/red y protección del token. Las pruebas del cliente verifican el proveedor inicializado antes de Auth y la ausencia de App Check en emuladores. Se comprueba también el respaldo/conservación de configuración y el bloqueo por CORS ausente.
 
-Las pruebas unitarias de configuración/despliegue cubren registro o reutilización de app, respaldo de configuración, exclusión de secretos, modelos explícitos, Spark, secreto deshabilitado, conflictos de funciones, orden de publicación, fallos parciales, catálogo faltante y comparación HTTPS. Se complementan con pruebas de admin/rutas/galería/QR. La ejecución real permanece bloqueada por la preparación y sesión productivas pendientes.
+Las pruebas unitarias de configuración/despliegue cubren registro o reutilización de app, respaldo de configuración, exclusión de secretos, modelos explícitos, Spark, secreto deshabilitado, conflictos de funciones, orden de publicación, fallos parciales, catálogo faltante y comparación HTTPS. Se complementan con pruebas de admin/rutas/galería/QR. La publicación real de Functions/Hosting y la prueba con IA permanecen pendientes de resolver el bloqueo de cuota y completar el despliegue desde la sesión autorizada de la Mac.
