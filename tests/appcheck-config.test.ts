@@ -67,10 +67,19 @@ const directories: string[] = [];
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); vi.unstubAllEnvs(); });
 function configDirectory() {
  const root = mkdtempSync(join(tmpdir(), 'rv-enterprise-config-')); directories.push(root);
+ // Vite prioritizes inherited VITE_* over fixture files, including during deploy:online.
+ for (const key of Object.keys(process.env)) if (key.startsWith('VITE_')) vi.stubEnv(key, undefined);
  vi.stubEnv('VITE_FIREBASE_MODE', 'cloud');
  return root;
 }
-it('sincroniza solo proveedor/clave pública, respalda y conserva modelos, app y emuladores', () => {
+it.each(['sin configurar', 'cloud', 'emulator'])('sincroniza la configuración de prueba con entorno %s, respaldando y conservando modelos/emuladores', inheritedMode => {
+ if (inheritedMode !== 'sin configurar') {
+  vi.stubEnv('VITE_FIREBASE_MODE', inheritedMode);
+  vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'fixture-inherited-project');
+  vi.stubEnv('VITE_FIREBASE_APP_ID', '1:999999:web:decaf001');
+  vi.stubEnv('VITE_FIREBASE_APPCHECK_PROVIDER', 'recaptcha-enterprise');
+  vi.stubEnv('VITE_FIREBASE_APPCHECK_SITE_KEY', 'fixture-inherited-site-key');
+ }
  const root = configDirectory(), target = join(root, '.env.production.local');
  const previous = `# Public configuration\nVITE_FIREBASE_MODE=cloud\nVITE_FIREBASE_PROJECT_ID=rinconcito-verde-cr\nVITE_FIREBASE_APP_ID=${appId}\nVITE_FIREBASE_APPCHECK_SITE_KEY=old-site-key\nexport VITE_FIREBASE_APPCHECK_PROVIDER=recaptcha-v3\nOPENAI_TEXT_MODEL=existing-model\n`;
  writeFileSync(target, previous); writeFileSync(join(root, '.env.local'), 'VITE_FIREBASE_MODE=emulator\n');
