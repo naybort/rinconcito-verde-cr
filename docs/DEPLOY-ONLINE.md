@@ -30,6 +30,8 @@ git pull --ff-only origin main && npm run deploy:online -- --without-app-check
 
 Este comando actualiza la aplicación sin ejecutar la prueba pagada de IA automáticamente. La confirmación del propietario sobre el funcionamiento es distinta del informe completo de verificación online, que todavía no se ha recibido en esta sesión.
 
+La pantalla de carga incluye una animación SVG de riego con un mínimo de tres segundos y espera adicional solo mientras dure la carga real. La implementación, accesibilidad, pruebas y limitaciones de validación visual están en [LOADING-ANIMATION.md](LOADING-ANIMATION.md).
+
 ## Preparación inicial
 
 ### Pausa temporal de App Check solicitada por el propietario

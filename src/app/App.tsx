@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PageLoading } from '../shared/loading/PageLoading';
 import { useRoute } from './useRoute';
 import { AdminShortcut } from '../features/admin/AdminShortcut';
 import { Alert, Box, Button, Chip, Container, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
@@ -16,12 +17,12 @@ import { buildMessage, buildWhatsAppLink } from '../features/contact/whatsapp';
 
 export default function App() {
  const route=useRoute();
- if(route==='#/admin')return <Suspense fallback={<Typography role="status">Cargando administración…</Typography>}><Admin/></Suspense>;
+ if(route==='#/admin')return <Suspense fallback={<PageLoading message="Cargando administración…"/>}><Admin/></Suspense>;
  return <PublicCatalog/>;
 }
 function PublicCatalog(){
  const {catalog,loading,error}=usePublicCatalog(localCatalog);
- if(loading)return <Container sx={{py:5}}><Typography role="status">Cargando catálogo…</Typography></Container>;
+ if(loading)return <PageLoading message="Cargando catálogo…"/>;
  return <>{error&&<Alert severity="warning">{error}</Alert>}<CatalogView catalog={catalog}/></>;
 }
 function CatalogView({catalog}:{catalog:Catalog}) {

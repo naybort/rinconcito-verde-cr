@@ -1,0 +1,22 @@
+.rv-loading-screen {
+ min-height: 100vh;
+ min-height: 100svh;
+ display: grid;
+ grid-template-rows: auto 1fr auto;
+ padding: clamp(20px, 4vw, 36px);
+}
+.rv-watering-scene { display: block; width: min(100%, 360px); height: auto; margin: 0 auto 12px; }
+.rv-watering-can { transform-origin: 105px 98px; animation: rv-pour 3s ease-in-out infinite; }
+.rv-water-drop { animation: rv-water 1.4s ease-in infinite; }
+.rv-water-drop-two { animation-delay: -.35s; }
+.rv-water-drop-three { animation-delay: -.7s; }
+.rv-water-drop-four { animation-delay: -1.05s; }
+.rv-leaves-main { transform-origin: 220px 195px; animation: rv-sway 3s ease-in-out infinite; }
+.rv-leaves-small { transform-origin: 124px 215px; animation: rv-sway 3s ease-in-out -.6s infinite reverse; }
+@keyframes rv-pour { 0%, 100% { transform: rotate(-5deg); } 45%, 65% { transform: rotate(9deg); } }
+@keyframes rv-water { 0% { opacity: 0; transform: translate(-3px, -9px); } 25% { opacity: .9; } 85% { opacity: .8; } 100% { opacity: 0; transform: translate(8px, 22px); } }
+@keyframes rv-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) {
+ .rv-watering-scene * { animation: none !important; }
+ .rv-water-drop { opacity: .8; }
+}
