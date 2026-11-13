@@ -8,7 +8,7 @@ import type { Catalog } from '../features/catalog/schema';
 import { usePublicCatalog } from '../features/catalog/usePublicCatalog';
 const Admin = lazy(() => import('../features/admin/Admin'));
 import { PlantCard } from '../features/catalog/PlantCard';
-import { PlantGallery, plantImages } from '../features/catalog/PlantGallery';
+import { PlantGallery } from '../features/catalog/PlantGallery';
 import { useFavorites } from '../features/favorites/useFavorites';
 import { buildMessage, buildWhatsAppLink } from '../features/contact/whatsapp';
 
@@ -62,30 +62,32 @@ function CatalogView({catalog}:{catalog:Catalog}) {
   </Box>
   {favorites.warning && <Container maxWidth="lg"><Alert severity="info" sx={{ my: 1 }}>{favorites.warning}</Alert></Container>}
   <Box component="main" id="contenido" sx={{ pb: 6, minHeight: 'calc(100dvh - 230px)' }}>
-   {isDetail && plant ? <>
-    <PlantGallery key={plant.id} plant={plant}/>
-    <Box sx={{ maxWidth: 896, mx: 'auto', px: { xs: '20px', md: 4 }, position: 'relative', mt: plantImages(plant).length>1?0:'-48px' }}>
+   {isDetail && plant ? <Container maxWidth="lg" sx={{ pt: 2, px: { xs: '20px', sm: 3 } }}>
+    <Button component="a" href="#/" startIcon={<img src="/icons/back.svg" alt=""/>} sx={{ mb: 2 }}>Volver al catálogo</Button>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1.05fr) minmax(0, 1fr)' }, gap: { xs: 3, md: 5 }, alignItems: 'start' }}>
+    <Box sx={{ minWidth: 0, position: { md: 'sticky' }, top: 24 }}><PlantGallery key={plant.id} plant={plant}/></Box>
+    <Box sx={{ minWidth: 0 }}>
      <Stack direction="row" sx={{ mb: 1, gap: 1, flexWrap: "wrap" }}>{catalog.categories.filter(c => plant.categoryIds.includes(c.id)).map(c => <Chip key={c.id} label={c.name} size="small" sx={{ bgcolor: '#ccd8d0' }} />)}</Stack>
-     <Typography {...titleProps} component="h1" variant="h1" sx={{ overflowWrap: 'anywhere' }}>{plant.name}</Typography>
+     <Typography {...titleProps} component="h1" variant="h1" sx={{ fontSize: { xs: '2rem', md: '2.75rem' }, overflowWrap: 'anywhere' }}>{plant.name}</Typography>
 
      {plant.available===false&&<Alert severity="info" sx={{mt:2}}>Esta ficha está archivada. Conservamos sus cuidados para tu planta.</Alert>}
      <Typography color="text.secondary" sx={{ mt: 3, lineHeight: '26px', maxWidth: 650 }}>{plant.description || 'Consultá al vivero para conocer más sobre esta planta.'}</Typography>
      <Box component="section" aria-labelledby="cuidados-heading" sx={{ mt: 4 }}>
       <Typography id="cuidados-heading" component="h2" variant="h3">Cómo cuidar tu planta</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>Estos cuidados pueden variar según tu espacio y clima. Consultanos si tenés dudas.</Typography>
-      {plant.care ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-       {([['light', 'Luz'], ['watering', 'Riego'], ['humidity', 'Humedad'], ['temperature', 'Temperatura']] as const).map(([key, label]) => <Paper key={key} variant="outlined" sx={{ p: 2.5, bgcolor: '#eef3ee' }}><Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', color: 'primary.main' }}><PlantIcon kind={key} /><Typography component="h3" sx={{ fontWeight: 700 }}>{label}</Typography></Stack><Typography color="text.secondary" sx={{ mt: 1 }}>{plant.care![key]}</Typography></Paper>)}
+      {plant.care ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr' }, gap: 1.5 }}>
+       {([['light', 'Luz'], ['watering', 'Riego'], ['humidity', 'Humedad'], ['temperature', 'Temperatura']] as const).map(([key, label]) => <Paper key={key} variant="outlined" sx={{ p: 2, bgcolor: '#eef3ee', overflowWrap: 'anywhere' }}><Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', color: 'primary.main' }}><PlantIcon kind={key} /><Typography component="h3" sx={{ fontWeight: 700 }}>{label}</Typography></Stack><Typography color="text.secondary" sx={{ mt: 1 }}>{plant.care![key]?.trim() || 'Consultanos por este cuidado.'}</Typography></Paper>)}
       </Box> : <Typography color="text.secondary">Consultanos por WhatsApp para conocer sus cuidados.</Typography>}
      </Box>
      {plant.warnings&&<Alert severity="warning" sx={{mt:2}}>{plant.warnings}</Alert>}
      {plant.sources?.length ? <Box sx={{mt:2}}><Typography component="h2" variant="h3">Fuentes de cuidados</Typography>{plant.sources.map(source=><Typography key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> · {source.accessedAt}</Typography>)}</Box>:null}
-     <Button variant="contained" fullWidth aria-pressed={favorites.ids.includes(plant.id)} onClick={() => favorites.toggle(plant.id)} startIcon={<PlantIcon kind="heart" filled={favorites.ids.includes(plant.id)} />} sx={{ mt: 5, py: 3 }}>
+     <Button variant="contained" fullWidth aria-pressed={favorites.ids.includes(plant.id)} onClick={() => favorites.toggle(plant.id)} startIcon={<PlantIcon kind="heart" filled={favorites.ids.includes(plant.id)} />} sx={{ mt: 3, py: 1.5 }}>
       {favorites.ids.includes(plant.id) ? 'Quitar de favoritos' : 'Añadir a favoritos'}
      </Button>
      {plantContact?.href && <Button component="a" href={plantContact.href} target="_blank" rel="noopener noreferrer" fullWidth variant="outlined" sx={{ mt: 2 }}>Consultar esta planta por WhatsApp</Button>}
      <Button component="a" href="#/favoritos" fullWidth sx={{ mt: 1 }}>Ver mis favoritos ({favorites.ids.length})</Button>
     </Box>
-   </> : isDetail || !['#/', '#/favoritos'].includes(route) ? <Container maxWidth="md" sx={{ py: 5 }}><Typography {...titleProps} component="h1" variant="h2">No encontramos esa página</Typography><Typography sx={{ my: 2 }}>La planta puede haber cambiado o ya no formar parte del catálogo.</Typography><Button component="a" href="#/" variant="contained">Volver al catálogo</Button></Container> :
+   </Box></Container> : isDetail || !['#/', '#/favoritos'].includes(route) ? <Container maxWidth="md" sx={{ py: 5 }}><Typography {...titleProps} component="h1" variant="h2">No encontramos esa página</Typography><Typography sx={{ my: 2 }}>La planta puede haber cambiado o ya no formar parte del catálogo.</Typography><Button component="a" href="#/" variant="contained">Volver al catálogo</Button></Container> :
    <Container maxWidth="lg" sx={{ px: { xs: '20px', sm: 3 }, pt: 3 }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 3, justifyContent: "space-between", gap: 1 }}>
      <Box><Typography {...titleProps} component="h1" variant="h2">{isFavorites ? 'Tus favoritos' : 'Encontrá tu próxima planta'}</Typography><Typography color="text.secondary" sx={{ mt: 1 }}>{isFavorites ? 'Tu selección se guarda en este navegador.' : 'Explorá el catálogo, guardá tus favoritas y consultanos por WhatsApp.'}</Typography></Box>
