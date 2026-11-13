@@ -90,9 +90,10 @@ for (const width of [320, 1280]) {
   await page.getByLabel('Copias por ficha', { exact: true }).fill('1.5');
   await expect(print).toBeDisabled(); await expect(page.locator('.plant-label')).toHaveCount(0);
   await page.getByLabel('Copias por ficha', { exact: true }).fill('12');
-  await page.getByRole('checkbox').nth(1).check();
+  await page.getByRole('checkbox', { name: /^Planta de nombre largo/ }).check();
   await expect(page.locator('.plant-label')).toHaveCount(24);
   await expect(print).toBeEnabled();
+  await page.getByRole('navigation', { name: 'Paginación de vista previa de etiquetas', exact: true }).getByRole('button', { name: 'Ir a la página 3', exact: true }).click();
   expect(decode(await page.locator('.plant-label').last().screenshot())).toBe('https://rinconcito-verde-cr.web.app/#/plantas/' + 'a'.repeat(80));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.emulateMedia({ media: 'print' });
