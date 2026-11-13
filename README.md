@@ -35,6 +35,7 @@ Preparación inicial, requisitos y revisión en línea: [docs/DEPLOY-ONLINE.md](
 ```bash
 npm run configure:online
 # Completar App Check, modelos y requisitos iniciales indicados en la guía.
+npm run check:appcheck
 npm run deploy:online -- --check
 npm run release:online
 ```

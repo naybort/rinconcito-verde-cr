@@ -40,7 +40,8 @@ function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boo
   if (args.includes('billing')) return JSON.stringify({ billingEnabled: options.billing !== false });
   if (args.includes('apps:sdkconfig')) return JSON.stringify({ status: 'success', result: { sdkConfig: { projectId: raw.VITE_FIREBASE_PROJECT_ID, appId: raw.VITE_FIREBASE_APP_ID, apiKey: raw.VITE_FIREBASE_API_KEY, authDomain: raw.VITE_FIREBASE_AUTH_DOMAIN, storageBucket: raw.VITE_FIREBASE_STORAGE_BUCKET } } });
   if (args.includes('firestore:databases:get')) return JSON.stringify({ status: 'success', result: { name: '(default)' } });
-  if (args.includes('appcheck:apps:list')) return JSON.stringify({ status: 'success', result: [{ appId: raw.VITE_FIREBASE_APP_ID, providers: ['recaptcha-v3'] }] });
+  if (args.includes('--format=value(projectNumber)')) return '123456';
+  if (args.includes('print-access-token')) return 'fixture-gcloud-session';
   if (args.includes('deploy')) {
    const config = JSON.parse(readFileSync(args[args.indexOf('--config') + 1], 'utf8'));
    expect(config.emulators).toBeUndefined(); expect(config.hosting.site).toBe(raw.VITE_FIREBASE_PROJECT_ID);
@@ -54,6 +55,7 @@ function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boo
   return args.includes('rev-parse') ? 'fixture-commit' : '';
  });
  const fetcher = vi.fn(async (url: string | URL | Request) => {
+  if (String(url).startsWith('https://firebaseappcheck.googleapis.com')) return new Response(JSON.stringify({ name: `projects/123456/apps/${raw.VITE_FIREBASE_APP_ID}/recaptchaV3Config`, siteSecretSet: true }));
   if (String(url).startsWith('https://firestore.googleapis.com')) return new Response('{}', { status: options.missingPlant ? 404 : 200 });
   if (options.smokeFailure) throw new Error('simulated HTTPS verification failure');
   return new Response(html);
@@ -62,6 +64,7 @@ function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boo
 }
 it('publica reglas y procesador antes del admin y Hosting, y verifica ambas URL exactas', async () => {
  const context = runtime(); await deployOnline(context);
+ expect(context.calls.some(command => command.args.includes('appcheck:apps:list'))).toBe(false);
  const deploys = context.calls.filter(c => c.args.includes('deploy'));
  expect(deploys.map(c => c.args[c.args.indexOf('--only') + 1])).toEqual(['firestore,storage', 'functions:catalog:processAI', 'functions:catalog:adminCommand', 'hosting']);
  for (const command of deploys) {

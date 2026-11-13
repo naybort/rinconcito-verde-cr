@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { loadEnv } from 'vite';
+import { checkAppCheck } from './check-appcheck.ts';
 import { productionEnvironment, productionAIConfig, productionProject as project, productionOrigin as origin, firebaseResult } from './production-config.ts';
 
 export type Command = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; capture: boolean };
@@ -35,8 +36,8 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
  }
  json(['firestore:databases:get', '(default)']);
  command('gcloud', ['storage', 'buckets', 'describe', 'gs://' + raw.VITE_FIREBASE_STORAGE_BUCKET, '--project', project, '--format=json', '--quiet'], true);
- const apps = json<{ appId: string; providers: string[] }[]>(['appcheck:apps:list']);
- if (!apps.some(item => item.appId === raw.VITE_FIREBASE_APP_ID && item.providers.includes('recaptcha-v3'))) throw new Error('Configurar App Check reCAPTCHA v3 para esta app antes de publicar el administrador.');
+ const projectNumber = command('gcloud', ['projects', 'describe', project, '--project', project, '--format=value(projectNumber)', '--quiet'], true).trim();
+ await checkAppCheck({ appId: raw.VITE_FIREBASE_APP_ID, projectNumber, getAccessToken: () => command('gcloud', ['auth', 'print-access-token', '--project', project, '--quiet'], true), fetcher });
  const secret = JSON.parse(command('gcloud', ['secrets', 'versions', 'describe', 'latest', '--secret=OPENAI_API_KEY', '--project', project, '--format=json', '--quiet'], true));
  if (secret.state !== 'ENABLED') throw new Error('OPENAI_API_KEY necesita una versión habilitada en Secret Manager. No se leyó el contenido del secreto.');
  const functions = json<{ id: string; region: string; platform: string; codebase?: string; labels?: Record<string, string> }[]>(['functions:list']);

@@ -12,9 +12,11 @@ Incluye QR con marca, fotografía con identidad, detalle ampliado, paginación y
 
 ## Estado de la preparación — 13 de noviembre de 2026
 
-El propietario solicitó el despliegue completo y pruebas reales de IA. Confirmó por terminal que no había apps web registradas y que `billingEnabled` era `False`; después autorizó vincular una cuenta de facturación concreta. **El intento de vinculación devolvió `429 RATE_LIMIT_EXCEEDED` de Cloud Billing y la consulta posterior siguió en `False`; todavía no quedó habilitada.** Los identificadores privados de facturación y correos administrativos no se guardan en este repositorio.
+El propietario autorizó el despliegue completo, las pruebas reales de IA y la vinculación de facturación. Después del error inicial `429`, confirmó `billingEnabled: True` desde su Mac. También ejecutó el pull y `configure:online`: la app web quedó registrada y `.env.production.local` guardado. No se repiten estos pasos ni se crean apps adicionales.
 
-**La publicación y las pruebas reales siguen pendientes.** La copia cloud no tiene sesión Firebase autorizada, gcloud ni configuración productiva completa, y no accede a la Mac. No se habilitó facturación desde esta copia ni se crearon usuarios productivos. Los scripts se validaron con mocks; ninguna prueba unitaria llama a OpenAI. Se conserva la configuración de los emuladores.
+**La publicación y las pruebas reales siguen pendientes.** La Mac confirmó `firestore.googleapis.com` y `firebaseappcheck.googleapis.com` habilitadas. Tras la propagación, `gcloud firestore databases list` terminó sin bases; falta crear `(default)` en la región de Functions, `us-central1`. Storage, registro App Check, secreto/modelos OpenAI, usuarios/roles y migración de datos no están confirmados. No hay un presupuesto mensual configurado ni se supone un límite monetario autorizado concreto.
+
+La copia cloud continúa sin sesión Firebase/gcloud y sin acceso a la Mac. Los cambios de producción anteriores los ejecutó el propietario en su terminal. La configuración de los emuladores se conserva. El CLI instalado en la Mac no reconoce `appcheck:apps:list`; el despliegue ahora consulta la API REST oficial de App Check y ofrece `npm run check:appcheck`.
 
 ## Preparación inicial
 
@@ -50,6 +52,35 @@ Completar en un editor local `VITE_FIREBASE_APPCHECK_SITE_KEY`, `OPENAI_TEXT_MOD
 - **Firestore y Storage:** crear/verificar `(default)` y el bucket del proyecto. Configurar CORS para descargar imágenes autenticadas desde ambos dominios, conservando cualquier origen anterior necesario. [Descargas y CORS](https://firebase.google.com/docs/storage/web/download-files).
 - **App Check:** registrar reCAPTCHA v3 para esta app y los dominios públicos, guardar la clave pública del sitio en `.env.production.local`. La callable exige App Check; no se desactiva para publicar. [Configuración oficial](https://firebase.google.com/docs/app-check/web/recaptcha-provider).
 - **Datos iniciales:** migrar las cuatro fichas y categorías JSON mediante un procedimiento revisado, con respaldo y creación sin sobrescribir registros existentes. Mantener IDs, fotos públicas y URLs QR, especialmente `sansevieria`. Preparar las copias públicas `publicPlants`/`publicCategories` y editables `plants`/`categories`, además de sus reglas de lectura, antes de sustituir el frontend. No inventar stock ni trasladar movimientos ficticios. **No ejecutar `seed:emulators` contra producción.** La migración, creación de servicios y asignación de roles no son automáticas en este comando; siguen siendo requisitos del primer despliegue.
+
+### Comprobación compatible de App Check y activación de Firestore
+
+```bash
+npm run check:appcheck
+```
+
+Lee el App ID de `.env.production.local`, confirma el número del proyecto mediante gcloud y consulta `recaptchaV3Config.get` con la sesión autorizada de esa misma máquina. Solicita únicamente `name` y `siteSecretSet`; el token temporal se mantiene en memoria, no se imprime ni se escribe en archivos, y se rechazan redirecciones. No pide pegar credenciales en el chat ni depende de comandos nuevos de Firebase CLI. Confirma el registro del proveedor, **no** el intercambio real de tokens desde el navegador ni la correspondencia de la clave pública del sitio. [API oficial de App Check](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaV3Config/get).
+
+Si una API todavía está deshabilitada, activar solamente los servicios del proyecto confirmado:
+
+```bash
+gcloud services enable firestore.googleapis.com firebaseappcheck.googleapis.com --project=rinconcito-verde-cr
+```
+
+Si la operación termina correctamente pero la consulta inmediata aún devuelve `SERVICE_DISABLED`, esperar unos minutos y consultar el estado antes de repetir una activación:
+
+```bash
+gcloud services list --enabled --project=rinconcito-verde-cr --filter='config.name=firestore.googleapis.com OR config.name=firebaseappcheck.googleapis.com' --format='value(config.name)'
+gcloud firestore databases list --project=rinconcito-verde-cr --format='table(name,locationId,type)'
+```
+
+Habilitar la API no crea una base. Solo después de confirmar que no existe `(default)`, crear Firestore Native en `us-central1`, junto a Functions:
+
+```bash
+gcloud firestore databases create --database='(default)' --location=us-central1 --type=firestore-native --project=rinconcito-verde-cr
+```
+
+Si ya existe, conservar su ubicación y datos; no eliminarla ni recrearla. La base nueva todavía necesita reglas, datos iniciales y administradores antes del despliegue completo.
 
 ### 4. OpenAI en Secret Manager
 
@@ -131,6 +162,8 @@ Antes de publicar, un fallo detiene el proceso. Durante el despliegue pueden que
 
 El frontend puede revertirse a una release Hosting verificada. Functions/reglas requieren revisión independiente; revertir Hosting no revierte datos ni permisos. No resetear el checkout del usuario ni restaurar inventario desde JSON.
 
-Validación de esta entrega: `npm run check` aprobado con **143 pruebas en 17 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene el aviso de tamaño del chunk administrativo.
+Validación de esta entrega: `npm run check` aprobado con **154 pruebas en 18 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene el aviso de tamaño del chunk administrativo.
+
+La comprobación App Check añade pruebas de pertenencia al proyecto, metadatos del proveedor, fallos HTTP/red, protección del token y ausencia de redirecciones.
 
 Las pruebas unitarias de configuración/despliegue cubren registro o reutilización de app, respaldo de configuración, exclusión de secretos, modelos explícitos, Spark, secreto deshabilitado, conflictos de funciones, orden de publicación, fallos parciales, catálogo faltante y comparación HTTPS. Se complementan con pruebas de admin/rutas/galería/QR. La ejecución real permanece bloqueada por la preparación y sesión productivas pendientes.
