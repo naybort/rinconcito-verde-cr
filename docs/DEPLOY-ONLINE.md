@@ -10,19 +10,15 @@ npm run release:online
 
 Incluye QR con marca, fotografía con identidad, detalle ampliado, paginación y miniaturas, ruta `/admin`, acceso desde el catálogo para administradores conectados, backend e IA real. Una compilación correcta no significa que el sitio ya esté publicado.
 
-## Estado de la preparación — 13 de noviembre de 2026
+## Estado de producción — 13 de noviembre de 2026
 
-El propietario autorizó el despliegue completo, las pruebas reales de IA y la vinculación de facturación. Después del error inicial `429`, confirmó `billingEnabled: True` desde su Mac. También ejecutó el pull y `configure:online`: la app web quedó registrada y `.env.production.local` guardado. No se repiten estos pasos ni se crean apps adicionales.
+**El despliegue completo está publicado; la validación real de IA sigue pendiente.** El informe de la Mac confirma `status: deployed` para el commit `d3ae059b7e717a6cc8d033b2bb65817107412777`, con reglas, worker IA, backend, Hosting y comparación HTTPS completados. La lectura independiente de `/` y `/admin` devolvió HTTP 200 y el mismo HTML; el JavaScript publicado también respondió correctamente.
 
-**La publicación de Functions/Hosting y las pruebas reales siguen pendientes.** El propietario confirmó en su Mac: APIs Firestore/App Check habilitadas; base `(default)` creada en `us-central1`, edición Standard y modo Native; bucket `rinconcito-verde-cr.firebasestorage.app` creado; dos cuentas administrativas creadas en Authentication; versión 1 de `OPENAI_API_KEY` creada en Secret Manager. También reportó configurados los modelos y la clave pública de App Check. Después confirmó que la app está registrada con **reCAPTCHA Enterprise**, mientras el cliente y la comprobación anteriores esperaban v3; esa diferencia detenía la preparación.
+La primera prueba online confirmó catálogo/detalle/favoritos en móvil y escritorio e inicio de sesión con rol administrador. Se detuvo al subir la fotografía privada, antes de guardar el borrador o solicitar IA (`requests: []` en ese informe). La consulta IAM confirmó que faltaba `roles/firebaserules.firestoreServiceAgent` al agente de Storage. El propietario lo asignó y verificó sin condición; queda repetir la prueba de subida, guardado y las tres operaciones reales de IA. Los intentos manuales fuera de ese informe no están auditados aquí.
 
-El propietario completó Enterprise, CORS, migración del catálogo, asignación de roles y publicación de reglas/índices Firestore y Storage. La lectura HTTPS anónima confirmó las cuatro plantas y tres categorías con sus IDs originales. Las pruebas y compilaciones ya pasan en el entorno de despliegue. Ambas funciones mantienen `us-central1` en código y el archivo generado pasa el parser real de Firebase CLI, sin variables reservadas.
+Blaze está activo. La app web, Enterprise, Firestore `(default)` en `us-central1`, el bucket, CORS, el catálogo inicial, las dos cuentas y sus roles, y el secreto OpenAI ya están preparados. El script fija proyecto y cuota gcloud a `rinconcito-verde-cr`; la consulta real con `--billing-project` devolvió `True`. No se cambian la configuración global de gcloud ni los emuladores. No hay un presupuesto mensual configurado ni se supone un límite monetario concreto.
 
-El último intento de crear `processAI` subió el código y asignó al runtime acceso a `OPENAI_API_KEY`, pero falló al crear el disparador de Eventarc. Las consultas posteriores confirmaron `roles/eventarc.serviceAgent` en el agente correcto, sin condición, y `404` para `processAI`: no había función creada. El reintento se detuvo antes de publicar por `429` en la consulta Cloud Billing, consumiendo cuota del proyecto compartido del cliente gcloud. Esta entrega fija el proyecto de cuota en cada consulta gcloud; falta confirmar la consulta real y completar Functions, Hosting y QA con IA.
-
-No hay un presupuesto mensual configurado ni se supone un límite monetario concreto.
-
-La copia cloud continúa sin sesión Firebase/gcloud y sin acceso a la Mac. Los cambios de producción anteriores los ejecutó el propietario en su terminal. La configuración de los emuladores se conserva. El CLI de la Mac no reconoce `appcheck:apps:list`; ahora se usa la API REST oficial y `npm run check:appcheck`. Las peticiones REST incluyen `X-Goog-User-Project: rinconcito-verde-cr` para evitar usar el proyecto compartido del cliente OAuth de gcloud como proyecto de cuota. [Comportamiento documentado de gcloud](https://cloud.google.com/sdk/gcloud/reference/auth/print-access-token).
+La copia cloud sigue sin sesión Firebase/gcloud y sin acceso a la Mac. El propietario ejecutó los cambios de producción y el login en su terminal/navegador. Los cambios posteriores al commit publicado añaden comprobaciones y diagnóstico local; para verificar el permiso IAM corregido se ejecuta `verify:online`, sin volver a publicar la aplicación.
 
 ## Preparación inicial
 
@@ -102,6 +98,24 @@ gcloud storage buckets describe gs://rinconcito-verde-cr.firebasestorage.app --p
 ```
 
 `storage.cors.json` permite GET desde los dos dominios Hosting, sin comodines. No cambia IAM, reglas ni la privacidad de los objetos. En futuras instalaciones con reglas CORS existentes, combinar las entradas necesarias antes de actualizar: `--cors-file` sustituye esa configuración completa. El preflight bloquea el despliegue si alguno de los dos dominios carece de GET. [CORS en Storage](https://cloud.google.com/storage/docs/using-cors).
+
+### Permiso de Storage para validar administradores en Firestore
+
+Las reglas de `storage.rules` consultan `adminUsers/UID` con `firestore.get()`. Además del rol del usuario, el agente de Storage necesita `roles/firebaserules.firestoreServiceAgent`. Firebase CLI omite la comprobación/asignación interactiva de este rol cuando se usa `--non-interactive`; desplegar las reglas no garantiza que esa integración esté habilitada. El preflight ahora comprueba el rol del agente exacto y bloquea una publicación si falta o tiene una condición que requiere revisión.
+
+Consultar únicamente ese permiso:
+
+```bash
+gcloud projects get-iam-policy rinconcito-verde-cr --billing-project=rinconcito-verde-cr --flatten='bindings[].members' --filter='bindings.role=roles/firebaserules.firestoreServiceAgent AND bindings.members=serviceAccount:service-673742120988@gcp-sa-firebasestorage.iam.gserviceaccount.com' --format='table(bindings.role,bindings.members,bindings.condition.expression)'
+```
+
+Si falta, asignarlo al agente de Storage de este proyecto, dentro de la preparación autorizada:
+
+```bash
+gcloud projects add-iam-policy-binding rinconcito-verde-cr --member='serviceAccount:service-673742120988@gcp-sa-firebasestorage.iam.gserviceaccount.com' --role='roles/firebaserules.firestoreServiceAgent' --condition=None --billing-project=rinconcito-verde-cr --format='none'
+```
+
+Volver a consultar para confirmar. Este rol permite a las reglas consultar Firestore; no abre el bucket al público ni modifica las cuentas de los administradores. No sustituirlo por Owner/Editor ni conceder roles de agente a personas. Si hay una condición IAM existente, revisar su alcance antes de cambiarla. Una vez propagado el permiso, ejecutar `npm run verify:online` para comprobar la subida/lectura privada y las funciones ya publicadas. [Integración Storage–Firestore](https://firebase.google.com/docs/storage/security/rules-conditions#enhance_with_cloud_firestore) y [rol de lectura entre servicios](https://cloud.google.com/iam/docs/roles-permissions/firebaserules).
 
 ### APIs y base de datos iniciales
 
@@ -194,7 +208,7 @@ npm run verify:online
 
 El despliegue automático:
 
-1. Valida configuración cloud, proyecto, sesión, Blaze, app web, base de datos, bucket, App Check, modelos y metadatos del secreto.
+1. Valida configuración cloud, proyecto/cuota, sesión, Blaze, app web, base de datos, bucket/CORS, permiso del agente Storage para consultar Firestore, App Check, modelos y metadatos del secreto.
 2. Verifica que `adminCommand` y `processAI`, si existen, pertenecen a la región/generación/codebase esperadas. Detiene una migración implícita.
 3. Ejecuta lint, tipos, pruebas, catálogo, frontend y compilación de Functions. Confirma por lectura pública que las fichas y categorías originales ya existen en Firestore.
 4. Prepara una fuente temporal de Functions con código compilado y `AI_ENABLED=true`, `AI_EMULATOR_OPENAI=false` y los modelos explícitos. Excluye los archivos locales de configuración y secretos. La región está declarada en el código del backend; no se añade `FUNCTION_REGION` al archivo generado porque Firebase reserva ese nombre.
@@ -210,7 +224,7 @@ El comando no inicia/detiene emuladores, asigna roles, envía mensajes ni migra 
 La ejecución completa:
 
 - Comprueba catálogo anónimo, Sansevieria, favoritos, detalle y tamaños móvil/escritorio.
-- Comprueba login/rol, crea un borrador privado `QA online Sansevieria <fecha>` y sube la fotografía existente del repositorio.
+- Comprueba login/rol, registra el ID del borrador privado `QA online Sansevieria <fecha>` y sube la fotografía existente. Antes de pedir IA, descarga el blob privado, compara su SHA-256 y guarda el borrador; espera hasta 90 segundos para permitir el arranque inicial de la callable sin reenviar la operación.
 - Envía **una solicitud real por tipo**: identificación, contenido con fuentes y mejora de fotografía. Espera las tres propuestas, comprueba cuidados/fuentes y que el texto del borrador no haya sido reemplazado.
 - Compara el SHA-256 de la fotografía original descargada con el archivo inicial. Deja las propuestas sin aceptar y el borrador sin publicar; no realiza movimientos de inventario.
 - Comprueba el botón «Administrar» en el catálogo, su desaparición al salir y el ancho móvil. Guarda `result.json`, IDs de trabajos y capturas en `.firebase/online-qa/<fecha>/` (ignorado por Git).
@@ -229,7 +243,7 @@ Para consultar instrucciones sin abrir Chrome ni generar contenido:
 npm run verify:online -- --help
 ```
 
-La calidad visual de la propuesta y exactitud botánica/fuentes requieren revisión humana. El informe no sustituye comprobar QR con teléfono/impresora, etiquetas, descargas de marca, WhatsApp y crédito Vision Mind. No se han obtenido todavía capturas ni resultados de este flujo real.
+La calidad visual de la propuesta y exactitud botánica/fuentes requieren revisión humana. El informe no sustituye comprobar QR con teléfono/impresora, etiquetas, descargas de marca, WhatsApp y crédito Vision Mind. La primera ejecución guardó capturas públicas móvil/escritorio y una captura del fallo de subida en `.firebase/online-qa/2026-11-13T18-43-23-414Z/` en la Mac. Las imágenes no se han transferido ni revisado visualmente desde la copia cloud. El informe nuevo registra la etapa y los mensajes de error visibles del panel, sin cookies, tokens ni campos de contraseña.
 
 ## Fallos, reversión y pruebas de preparación
 
@@ -252,10 +266,10 @@ Antes de publicar, un fallo detiene el proceso. Durante el despliegue pueden que
 
 El frontend puede revertirse a una release Hosting verificada. Functions/reglas requieren revisión independiente; revertir Hosting no revierte datos ni permisos. No resetear el checkout del usuario ni restaurar inventario desde JSON.
 
-Validación de esta entrega: `npm run check` aprobado con **186 pruebas en 20 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene un aviso por un chunk mayor de 500 kB. La corrección de aislamiento se comprueba ejecutando `npm run check` con variables públicas ficticias inyectadas mediante `productionEnvironment`, como hace el despliegue. Los casos de App Check cubren entorno vacío, cloud y emuladores; no requieren configuración real ni acceso remoto.
+Validación de esta entrega: `npm run check` aprobado con **188 pruebas en 20 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene un aviso por un chunk mayor de 500 kB. La corrección de aislamiento se comprueba ejecutando `npm run check` con variables públicas ficticias inyectadas mediante `productionEnvironment`, como hace el despliegue. Los casos de App Check cubren entorno vacío, cloud y emuladores; no requieren configuración real ni acceso remoto.
 
 La preparación añade pruebas de migración completa, fotos adicionales, conservación de registros existentes, pares incompletos, concurrencia, acceso en ambos sistemas, cuentas ausentes/deshabilitadas, claims existentes y fallos parciales. `npm run prepare:online -- --help` también se ejecutó sin acceso a servicios.
 
 La comprobación App Check cubre v3 y Enterprise, coincidencia de la clave pública, pertenencia a la app/proyecto, fallos HTTP/red y protección del token. Las pruebas del cliente verifican el proveedor inicializado antes de Auth y la ausencia de App Check en emuladores. Se comprueba también el respaldo/conservación de configuración y el bloqueo por CORS ausente.
 
-Las pruebas unitarias de configuración/despliegue cubren registro o reutilización de app, respaldo de configuración, exclusión de secretos, modelos explícitos, Spark, secreto deshabilitado, conflictos de funciones, orden de publicación, fallos parciales, catálogo faltante y comparación HTTPS. Se complementan con pruebas de admin/rutas/galería/QR. La publicación real de Functions/Hosting y la prueba con IA permanecen pendientes de resolver el bloqueo de cuota y completar el despliegue desde la sesión autorizada de la Mac.
+Las pruebas unitarias de configuración/despliegue cubren registro o reutilización de app, respaldo de configuración, exclusión de secretos, modelos explícitos, Spark, secreto deshabilitado, conflictos de funciones, orden de publicación, fallos parciales, catálogo faltante y comparación HTTPS. Se complementan con pruebas de admin/rutas/galería/QR. Functions y Hosting quedaron publicados en el commit indicado arriba. Sigue pendiente completar la validación real de subida/guardado/IA después del permiso IAM corregido y comprobar el acceso de la segunda cuenta.

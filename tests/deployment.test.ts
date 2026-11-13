@@ -32,7 +32,7 @@ beforeEach(() => {
  writeFileSync(join(root, 'functions/.env.local'), 'AI_ENABLED=true\nOPENAI_LOCAL_API_KEY=private-fixture-do-not-copy\n');
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
-function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boolean; smokeFailure?: boolean; secretEnabled?: boolean; foreignWorker?: boolean; missingCors?: boolean } = {}) {
+function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boolean; smokeFailure?: boolean; secretEnabled?: boolean; foreignWorker?: boolean; missingCors?: boolean; storageGrant?: 'missing' | 'conditional' } = {}) {
  const calls: Command[] = [];
  const run = vi.fn((command: Command) => {
   calls.push(command);
@@ -42,6 +42,7 @@ function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boo
   if (args.includes('secrets')) return JSON.stringify({ state: options.secretEnabled === false ? 'DISABLED' : 'ENABLED' });
   if (args.includes('functions:list')) return JSON.stringify({ status: 'success', result: options.foreignWorker ? [{ id: 'processAI', region: 'europe-west1', platform: 'gcfv2', codebase: 'catalog' }] : [] });
   if (args.includes('buckets')) return JSON.stringify({ name: raw.VITE_FIREBASE_STORAGE_BUCKET, cors: options.missingCors ? [] : [{ origin: [productionOrigin, 'https://rinconcito-verde-cr.firebaseapp.com'], method: ['GET'] }] });
+  if (args.includes('get-iam-policy')) return options.storageGrant === 'missing' ? '' : 'roles/firebaserules.firestoreServiceAgent' + (options.storageGrant === 'conditional' ? '\trequest.time < timestamp("2020-01-01T00:00:00Z")' : '');
   if (args.includes('billing')) return JSON.stringify({ billingEnabled: options.billing !== false });
   if (args.includes('apps:sdkconfig')) return JSON.stringify({ status: 'success', result: { sdkConfig: { projectId: raw.VITE_FIREBASE_PROJECT_ID, appId: raw.VITE_FIREBASE_APP_ID, apiKey: raw.VITE_FIREBASE_API_KEY, authDomain: raw.VITE_FIREBASE_AUTH_DOMAIN, storageBucket: raw.VITE_FIREBASE_STORAGE_BUCKET } } });
   if (args.includes('firestore:databases:get')) return JSON.stringify({ status: 'success', result: { name: '(default)' } });
@@ -171,11 +172,19 @@ it('fija proyecto y cuota en cada consulta gcloud sin cambiar configuración ni 
  const context = runtime();
  await deployOnline({ ...context, checkOnly: true, ambient: { CLOUDSDK_BILLING_QUOTA_PROJECT: 'fixture-other-quota-project' } });
  const queries = context.calls.filter(call => call.command === 'gcloud');
- expect(queries.map(call => call.args[0])).toEqual(['billing', 'storage', 'projects', 'auth', 'secrets']);
+ expect(queries.map(call => call.args[0])).toEqual(['billing', 'storage', 'projects', 'auth', 'projects', 'secrets']);
  for (const query of queries) {
   expect(query.args[query.args.indexOf('--project') + 1]).toBe('rinconcito-verde-cr');
   expect(query.args[query.args.indexOf('--billing-project') + 1]).toBe('rinconcito-verde-cr');
   expect(query.args).toContain('--quiet');
  }
  expect(context.calls.some(call => call.args.some(arg => ['link', 'enable', 'config', 'deploy'].includes(arg)))).toBe(false);
+});
+
+it.each(['missing', 'conditional'] as const)('bloquea la publicación cuando Storage no puede consultar Firestore: %s', async storageGrant => {
+ const context = runtime({ storageGrant });
+ await expect(deployOnline(context)).rejects.toThrow('reglas de Storage');
+ const query = context.calls.find(call => call.args.includes('get-iam-policy'))!;
+ expect(query.args).toContain('--filter=bindings.role=roles/firebaserules.firestoreServiceAgent AND bindings.members=serviceAccount:service-123456@gcp-sa-firebasestorage.iam.gserviceaccount.com');
+ expect(context.calls.some(call => call.args.includes('deploy') || call.args.includes('add-iam-policy-binding'))).toBe(false);
 });

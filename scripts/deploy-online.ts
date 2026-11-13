@@ -43,6 +43,11 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
  }
  const projectNumber = gcloud(['projects', 'describe', project, '--format=value(projectNumber)']).trim();
  await checkAppCheck({ appId: raw.VITE_FIREBASE_APP_ID, projectNumber, provider: raw.VITE_FIREBASE_APPCHECK_PROVIDER, expectedSiteKey: raw.VITE_FIREBASE_APPCHECK_SITE_KEY, getAccessToken: () => gcloud(['auth', 'print-access-token']), fetcher });
+ // Firebase CLI skips this cross-service IAM check in non-interactive deployments.
+ const storageRole = 'roles/firebaserules.firestoreServiceAgent';
+ const storageAgent = `serviceAccount:service-${projectNumber}@gcp-sa-firebasestorage.iam.gserviceaccount.com`;
+ const storageGrants = gcloud(['projects', 'get-iam-policy', project, '--flatten=bindings[].members', `--filter=bindings.role=${storageRole} AND bindings.members=${storageAgent}`, '--format=value(bindings.role,bindings.condition.expression)']);
+ if (!storageGrants.split(/\r?\n/).some(line => line.trim() === storageRole)) throw new Error('Falta el permiso de las reglas de Storage para consultar Firestore, o requiere revisar una condición IAM. Comprobar ' + storageRole + ' en ' + storageAgent + '. Ver docs/DEPLOY-ONLINE.md antes de publicar.');
  const secret = JSON.parse(gcloud(['secrets', 'versions', 'describe', 'latest', '--secret=OPENAI_API_KEY', '--format=json']));
  if (secret.state !== 'ENABLED') throw new Error('OPENAI_API_KEY necesita una versión habilitada en Secret Manager. No se leyó el contenido del secreto.');
  const functions = json<{ id: string; region: string; platform: string; codebase?: string; labels?: Record<string, string> }[]>(['functions:list']);
