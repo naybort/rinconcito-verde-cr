@@ -36,6 +36,22 @@ export async function checkAppCheck({ appId, projectNumber, provider: requestedP
  if (enterprise) {
   if (!config.siteKey || !/^[a-zA-Z0-9_-]{10,200}$/.test(config.siteKey)) throw new Error('Falta la clave pública en el registro reCAPTCHA Enterprise de esta app.');
   if (expectedSiteKey !== undefined && config.siteKey !== expectedSiteKey) throw new Error('La clave pública de App Check no coincide con Enterprise. Ejecutar npm run check:appcheck -- --configure-enterprise.');
+  // A matching App Check registration can still contain a wrong value (including a
+  // pasted secret). Verify the actual public key resource before copying/building it.
+  const keyName = `projects/${projectNumber}/keys/${config.siteKey}`;
+  let keyResponse: Response;
+  try {
+   keyResponse = await fetcher(`https://recaptchaenterprise.googleapis.com/v1/${keyName}?fields=name,webSettings`, {
+    method: 'GET', headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': project }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
+   });
+  } catch { throw new Error('No se pudo verificar la clave Enterprise. Revisar conexión y sesión gcloud.'); }
+  if (keyResponse.status === 404) throw new Error('App Check apunta a una clave que no existe en reCAPTCHA Enterprise de este proyecto. Corregir el registro con la clave pública del sitio, no con su secreto.');
+  if (keyResponse.status === 403) throw new Error('No se pudo consultar la clave Enterprise (HTTP 403). Revisar recaptchaenterprise.googleapis.com y el permiso recaptchaenterprise.keys.get.');
+  if (!keyResponse.ok) throw new Error(`No se pudo verificar la clave Enterprise (HTTP ${keyResponse.status}).`);
+  const key = await keyResponse.json() as { name?: string; webSettings?: { integrationType?: string; allowedDomains?: string[]; allowAllDomains?: boolean } };
+  if (key.name !== keyName || key.webSettings?.integrationType !== 'SCORE') throw new Error('App Check requiere una clave web Enterprise de tipo SCORE perteneciente al proyecto confirmado.');
+  const domains = [project + '.web.app', project + '.firebaseapp.com'];
+  if (key.webSettings.allowAllDomains || !domains.every(domain => key.webSettings?.allowedDomains?.includes(domain))) throw new Error('La clave Enterprise debe permitir los dos dominios públicos del catálogo, con la validación de dominios activada.');
   return { appId, provider, configured: true as const, siteKey: config.siteKey };
  }
  if (config.siteSecretSet !== true) throw new Error('Falta completar el registro reCAPTCHA v3 de esta app en Firebase Console > App Check.');

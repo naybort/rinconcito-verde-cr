@@ -46,11 +46,14 @@ it('distingue un motivo conocido de HTTP 403 sin mostrar el cuerpo crudo', async
 
 const enterpriseName = `projects/123456/apps/${appId}/recaptchaEnterpriseConfig`;
 const siteKey = 'fixture-enterprise-public-key';
-it('valida Enterprise y su clave pública usando únicamente el recurso correcto', async () => {
- const context = runtime(200, { name: enterpriseName, siteKey });
+const enterpriseKey = { name: `projects/123456/keys/${siteKey}`, webSettings: { integrationType: 'SCORE', allowedDomains: ['rinconcito-verde-cr.web.app', 'rinconcito-verde-cr.firebaseapp.com'], allowAllDomains: false } };
+it('valida el registro Enterprise y su clave real con dominios del catálogo', async () => {
+ const context = runtime(200, enterpriseKey);
+ context.fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ name: enterpriseName, siteKey })));
  expect(await checkAppCheck({ ...context, provider: 'recaptcha-enterprise', expectedSiteKey: siteKey })).toMatchObject({ appId, provider: 'recaptcha-enterprise', configured: true, siteKey });
  expect(context.fetcher).toHaveBeenCalledWith(expect.stringContaining('/recaptchaEnterpriseConfig?fields=name,siteKey'), expect.objectContaining({ redirect: 'error' }));
- expect(context.fetcher).toHaveBeenCalledOnce();
+ expect(context.fetcher).toHaveBeenCalledTimes(2);
+ expect(context.fetcher).toHaveBeenLastCalledWith(`https://recaptchaenterprise.googleapis.com/v1/${enterpriseKey.name}?fields=name,webSettings`, expect.objectContaining({ method: 'GET', redirect: 'error', headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': 'rinconcito-verde-cr' } }));
 });
 it.each([{ name: enterpriseName }, { name, siteKey }, { name: enterpriseName, siteKey: 'invalid\nkey' }])('rechaza Enterprise incompleto o ajeno: %j', async data => {
  await expect(checkAppCheck({ ...runtime(200, data), provider: 'recaptcha-enterprise' })).rejects.toThrow('registro');
@@ -101,4 +104,20 @@ it('no cambia archivos si la app local difiere de la verificada', () => {
  writeFileSync(target, previous);
  expect(() => saveEnterpriseAppCheck(root, { appId, provider: 'recaptcha-enterprise', siteKey })).toThrow('no corresponde');
  expect(readFileSync(target, 'utf8')).toBe(previous); expect(readdirSync(root)).toHaveLength(1);
+});
+
+it.each([404, 403, 429])('bloquea una clave Enterprise no verificable (HTTP %s) sin exponer su valor', async status => {
+ const context = runtime(status, { error: { message: token + siteKey } });
+ context.fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ name: enterpriseName, siteKey })));
+ const error = await checkAppCheck({ ...context, provider: 'recaptcha-enterprise' }).catch(error => error as Error);
+ expect(error).toBeInstanceOf(Error); if (!(error instanceof Error)) throw new Error('La comprobación debía rechazar la clave.'); expect(error.message).not.toContain(token); expect(error.message).not.toContain(siteKey);
+});
+it.each([
+ { ...enterpriseKey, name: 'projects/other/keys/wrong' },
+ { ...enterpriseKey, webSettings: { ...enterpriseKey.webSettings, integrationType: 'CHECKBOX' } },
+ { ...enterpriseKey, webSettings: { ...enterpriseKey.webSettings, allowedDomains: ['localhost'] } },
+ { ...enterpriseKey, webSettings: { ...enterpriseKey.webSettings, allowAllDomains: true } },
+])('rechaza claves de otro proyecto, tipo o dominios: %j', async key => {
+ const context = runtime(200, key); context.fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ name: enterpriseName, siteKey })));
+ await expect(checkAppCheck({ ...context, provider: 'recaptcha-enterprise' })).rejects.toThrow();
 });

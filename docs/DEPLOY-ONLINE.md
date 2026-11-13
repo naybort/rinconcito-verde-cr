@@ -14,13 +14,38 @@ Incluye QR con marca, fotografía con identidad, detalle ampliado, paginación y
 
 **El despliegue completo está publicado; la validación real de IA sigue pendiente.** El informe de la Mac confirma `status: deployed` para el commit `d3ae059b7e717a6cc8d033b2bb65817107412777`, con reglas, worker IA, backend, Hosting y comparación HTTPS completados. La lectura independiente de `/` y `/admin` devolvió HTTP 200 y el mismo HTML; el JavaScript publicado también respondió correctamente.
 
-La primera prueba online confirmó catálogo/detalle/favoritos en móvil y escritorio e inicio de sesión con rol administrador. Se detuvo al subir la fotografía privada, antes de guardar el borrador o solicitar IA (`requests: []` en ese informe). La consulta IAM confirmó que faltaba `roles/firebaserules.firestoreServiceAgent` al agente de Storage. El propietario lo asignó y verificó sin condición; queda repetir la prueba de subida, guardado y las tres operaciones reales de IA. Los intentos manuales fuera de ese informe no están auditados aquí.
+La primera prueba online confirmó catálogo/detalle/favoritos en móvil y escritorio e inicio de sesión con rol administrador. Se detuvo al subir la fotografía privada, antes de guardar el borrador o solicitar IA (`requests: []` en ese informe). La consulta IAM confirmó que faltaba `roles/firebaserules.firestoreServiceAgent` al agente de Storage. El propietario lo asignó y verificó sin condición. Después, el guardado devolvió 401: los registros muestran sesión válida y App Check ausente. El módulo Firebase publicado contiene una clave distinta de la única clave Enterprise del proyecto; el propietario pidió pausar temporalmente App Check. Quedan pendientes el nuevo despliegue, la prueba de guardado y las tres operaciones reales de IA. Los intentos manuales fuera de ese informe no están auditados aquí.
 
 Blaze está activo. La app web, Enterprise, Firestore `(default)` en `us-central1`, el bucket, CORS, el catálogo inicial, las dos cuentas y sus roles, y el secreto OpenAI ya están preparados. El script fija proyecto y cuota gcloud a `rinconcito-verde-cr`; la consulta real con `--billing-project` devolvió `True`. No se cambian la configuración global de gcloud ni los emuladores. No hay un presupuesto mensual configurado ni se supone un límite monetario concreto.
 
-La copia cloud sigue sin sesión Firebase/gcloud y sin acceso a la Mac. El propietario ejecutó los cambios de producción y el login en su terminal/navegador. Los cambios posteriores al commit publicado añaden comprobaciones y diagnóstico local; para verificar el permiso IAM corregido se ejecuta `verify:online`, sin volver a publicar la aplicación.
+La copia cloud sigue sin sesión Firebase/gcloud y sin acceso a la Mac. El propietario ejecutó los cambios de producción y el login en su terminal/navegador. La pausa solicitada cambia el cliente y la función administrativa, por lo que requiere un nuevo despliegue. Prepararla o superar pruebas locales no significa que ya esté aplicada en producción.
 
 ## Preparación inicial
+
+### Pausa temporal de App Check solicitada por el propietario
+
+Desde la carpeta del proyecto, incorporar la actualización y desplegar con el flag explícito:
+
+```bash
+git pull --ff-only origin main && npm run deploy:online -- --without-app-check
+```
+
+`--without-app-check` desactiva la inicialización de reCAPTCHA en el cliente y la exigencia de App Check en `adminCommand` **solo para ese despliegue**. El informe registra `appCheckEnforced: false`. El build excluye el valor de la clave reCAPTCHA; no se cambia el registro remoto ni `.env.production.local`. Se mantienen Authentication, custom claims, lista de administradores activos, reglas de Firestore/Storage, validación de fotos, versiones, idempotencia y límites de IA. Durante la pausa la función no exige atestación del navegador. Las solicitudes todavía requieren un usuario autorizado.
+
+No pasar este flag a `release:online`: usar el comando anterior y, al confirmar el despliegue, `npm run verify:online`. La verificación completa crea un borrador privado y tres trabajos reales de IA; revisar el informe de cualquier intento incompleto antes de repetir. Para comprobar la preparación sin publicar: `npm run deploy:online -- --check --without-app-check`.
+
+Para reactivar, corregir en Firebase App Check el campo de clave pública Enterprise usando el ID de una clave web SCORE del mismo proyecto, con ambos dominios autorizados. Luego:
+
+```bash
+npm run check:appcheck -- --configure-enterprise &&
+npm run deploy:online
+```
+
+El despliegue normal siempre escribe `CATALOG_APPCHECK_ENFORCED=true` en Functions y activa App Check en el cliente, aunque una terminal herede variables de una pausa anterior. Un valor desconocido de la política del backend se rechaza. El preflight normal valida ahora también la existencia, tipo y dominios de la clave real mediante `recaptchaenterprise.keys.get`; no basta con que coincidan el archivo local y el registro de App Check. La configuración de prueba o un secreto no deben usarse como clave pública. Si se confirmó que un secreto estuvo en un build anterior, revocarlo con su proveedor; retirar el valor del siguiente build no revoca copias anteriores.
+
+Validación de esta entrega: 204 pruebas unitarias, lint, tipos y compilaciones de frontend/backend aprobados con entorno ficticio de producción y la pausa activa. Se comprobó por separado el handler compilado: rechaza usuarios anónimos, miembros ausentes/inactivos y roles inválidos o distintos, sustituyendo las lecturas de Firestore en memoria, sin llamadas remotas. El build pausado no contiene el valor de la clave reCAPTCHA de prueba. Esto no sustituye la prueba del guardado ni de IA en producción.
+
+Con App Check activo, el panel comprueba su token antes de enviar una operación. Un fallo muestra únicamente un código de diagnóstico y estado HTTP, sin mensajes crudos, tokens ni claves. No fuerza renovaciones ni reintenta guardados automáticamente; un intercambio que no responde se detiene a los 20 segundos.
 
 ### 1. Herramientas, sesión y facturación
 
@@ -80,7 +105,7 @@ npm run check:appcheck
 
 El primer comando consulta únicamente `name` y `siteKey` de `recaptchaEnterpriseConfig.get` para el App ID y número de proyecto confirmados. Guarda `VITE_FIREBASE_APPCHECK_PROVIDER=recaptcha-enterprise` y la clave pública en `.env.production.local`, conservando modelos, valores Firebase y un respaldo privado del archivo anterior. No modifica el registro remoto, `.env.local` ni los emuladores. Si ya coincide, no reescribe ni crea otro respaldo. Los archivos y respaldos están ignorados por Git.
 
-La comprobación normal y el preflight del despliegue seleccionan el recurso correspondiente al proveedor. Enterprise exige que la clave pública local coincida con Firebase; v3 verifica `siteSecretSet` y no puede comparar su clave pública mediante esta API. El token temporal de gcloud se mantiene en memoria, no se imprime ni escribe, y se rechazan redirecciones. El intercambio real de tokens y los dominios se verifican después desde el navegador online. [Recurso Enterprise](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaEnterpriseConfig) y [consulta v3](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaV3Config/get).
+La comprobación normal y el preflight del despliegue seleccionan el recurso correspondiente al proveedor. Enterprise exige que la clave pública local coincida con Firebase y exista como clave web SCORE del proyecto con ambos dominios permitidos; v3 verifica `siteSecretSet` y no puede comparar su clave pública mediante esta API. El token temporal de gcloud se mantiene en memoria, no se imprime ni escribe, y se rechazan redirecciones. El intercambio real de tokens y los dominios se verifican después desde el navegador online. [Recurso Enterprise](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaEnterpriseConfig) y [consulta v3](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaV3Config/get).
 
 ### CORS para las fotografías privadas
 

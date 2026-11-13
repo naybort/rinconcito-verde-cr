@@ -3,6 +3,7 @@ import { getFirestore, type Transaction } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { appCheckEnforced } from './appCheckPolicy.js';
 import { defineSecret } from 'firebase-functions/params';
 import { generateAI, RetryableAIError, type AIInput } from './ai.js';
 import { safeAIFailure, type AIStage } from './aiErrors.js';
@@ -19,7 +20,7 @@ const db=getFirestore();
 // Deployment region is explicit; FUNCTION_REGION is reserved by Firebase.
 const region='us-central1';
 const apiKey=defineSecret('OPENAI_API_KEY');
-const options={region,maxInstances:4,concurrency:20,timeoutSeconds:60,enforceAppCheck:!emulator};
+const options={region,maxInstances:4,concurrency:20,timeoutSeconds:60,enforceAppCheck:!emulator&&appCheckEnforced(process.env.CATALOG_APPCHECK_ENFORCED)};
 const envelope=z.object({requestId:z.string().uuid(),action:z.enum(['savePlant','review','publish','archive','restore','saveTaxonomy','inventory','presentation','requestAI']),payload:z.unknown()}).strict();
 const versioned=z.object({id:idSchema,revision:z.number().int().nonnegative()}).strict();
 const taxonomySchema=z.object({kind:z.enum(['categories','careTemplates']),id:idSchema,name:z.string().trim().min(1).max(120),active:z.boolean(),revision:z.number().int().nonnegative(),care:careSchema.optional(),sources:z.array(sourceSchema).max(20).optional()}).strict();

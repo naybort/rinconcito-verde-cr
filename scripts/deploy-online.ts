@@ -18,10 +18,11 @@ const runCommand: Run = ({ command, args, cwd, env, capture }) => {
  }
  return result.stdout ?? '';
 };
-type Options = { root: string; raw: Record<string, string>; ai?: Record<string, string>; ambient?: NodeJS.ProcessEnv; checkOnly?: boolean; run?: Run; fetcher?: typeof fetch; log?: (message: string) => void };
-export async function deployOnline({ root, raw, ai = {}, ambient = process.env, checkOnly = false, run = runCommand, fetcher = globalThis.fetch, log = console.log }: Options) {
- const env = productionEnvironment(raw, ambient);
- const aiConfig = productionAIConfig(ai);
+type Options = { root: string; raw: Record<string, string>; ai?: Record<string, string>; ambient?: NodeJS.ProcessEnv; checkOnly?: boolean; withoutAppCheck?: boolean; run?: Run; fetcher?: typeof fetch; log?: (message: string) => void };
+export async function deployOnline({ root, raw, ai = {}, ambient = process.env, checkOnly = false, withoutAppCheck = false, run = runCommand, fetcher = globalThis.fetch, log = console.log }: Options) {
+ const env = productionEnvironment(raw, ambient, withoutAppCheck);
+ const aiConfig = { ...productionAIConfig(ai), CATALOG_APPCHECK_ENFORCED: String(!withoutAppCheck) };
+ if (withoutAppCheck) log('Pausa explícita de App Check para este despliegue. Se mantienen Authentication, roles, reglas y límites de IA.');
  const command = (program: string, args: string[], capture = false) => run({ command: program, args, cwd: root, env, capture });
  const gcloud = (args: string[]) => command('gcloud', projectGcloudArgs(args), true);
  const firebase = (args: string[], capture = false) => command(process.execPath, [join(root, 'node_modules/firebase-tools/lib/bin/firebase.js'), ...args, '--project', project, '--non-interactive'], capture);
@@ -42,7 +43,7 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
   if (!bucket.cors?.some(rule => rule.method?.includes('GET') && (rule.origin?.includes(site) || rule.origin?.includes('*')))) throw new Error('Falta CORS para descargar fotografías desde ' + site + '. Revisar storage.cors.json y docs/DEPLOY-ONLINE.md antes de publicar.');
  }
  const projectNumber = gcloud(['projects', 'describe', project, '--format=value(projectNumber)']).trim();
- await checkAppCheck({ appId: raw.VITE_FIREBASE_APP_ID, projectNumber, provider: raw.VITE_FIREBASE_APPCHECK_PROVIDER, expectedSiteKey: raw.VITE_FIREBASE_APPCHECK_SITE_KEY, getAccessToken: () => gcloud(['auth', 'print-access-token']), fetcher });
+ if (!withoutAppCheck) await checkAppCheck({ appId: raw.VITE_FIREBASE_APP_ID, projectNumber, provider: raw.VITE_FIREBASE_APPCHECK_PROVIDER, expectedSiteKey: raw.VITE_FIREBASE_APPCHECK_SITE_KEY, getAccessToken: () => gcloud(['auth', 'print-access-token']), fetcher });
  // Firebase CLI skips this cross-service IAM check in non-interactive deployments.
  const storageRole = 'roles/firebaserules.firestoreServiceAgent';
  const storageAgent = `serviceAccount:service-${projectNumber}@gcp-sa-firebasestorage.iam.gserviceaccount.com`;
@@ -68,7 +69,7 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
  const stateDirectory = join(root, '.firebase'); mkdirSync(stateDirectory, { recursive: true });
  const stage = mkdtempSync(join(stateDirectory, 'deploy-online-'));
  const steps: string[] = [];
- const report = { project, sourceCommit: command('git', ['rev-parse', 'HEAD'], true).trim(), sourceDirty: !!command('git', ['status', '--porcelain', '--untracked-files=normal'], true).trim(), startedAt: new Date().toISOString(), steps, status: 'running', url: origin };
+ const report = { project, appCheckEnforced: !withoutAppCheck, sourceCommit: command('git', ['rev-parse', 'HEAD'], true).trim(), sourceDirty: !!command('git', ['status', '--porcelain', '--untracked-files=normal'], true).trim(), startedAt: new Date().toISOString(), steps, status: 'running', url: origin };
  const record = () => writeFileSync(join(stateDirectory, 'deploy-online-result.json'), JSON.stringify(report, null, 2) + '\n');
  record();
  try {
@@ -118,10 +119,11 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
  const args = process.argv.slice(2);
- if (args.length > 1 || (args.length === 1 && args[0] !== '--check')) { console.error('Uso: npm run deploy:online [-- --check]'); process.exitCode = 2; }
+ if (args.length === 1 && args[0] === '--help') console.log('Uso: npm run deploy:online [-- --check] [--without-app-check]\n--without-app-check pausa App Check solo en este despliegue; conserva sesión y roles. El despliegue normal lo vuelve a exigir.');
+ else if (args.some(arg => !['--check', '--without-app-check'].includes(arg)) || new Set(args).size !== args.length) { console.error('Uso: npm run deploy:online [-- --check] [--without-app-check]'); process.exitCode = 2; }
  else {
   const root = fileURLToPath(new URL('../', import.meta.url));
-  try { await deployOnline({ root, raw: loadEnv('production', root, 'VITE_'), ai: loadEnv('production', root, ['OPENAI_TEXT_MODEL', 'OPENAI_IMAGE_MODEL']), checkOnly: args[0] === '--check' }); }
+  try { await deployOnline({ root, raw: loadEnv('production', root, 'VITE_'), ai: loadEnv('production', root, ['OPENAI_TEXT_MODEL', 'OPENAI_IMAGE_MODEL']), checkOnly: args.includes('--check'), withoutAppCheck: args.includes('--without-app-check') }); }
   catch (error) { console.error(error instanceof Error ? error.message : 'No se completó el despliegue.'); process.exitCode = 1; }
  }
 }

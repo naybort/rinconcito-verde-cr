@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { deployOnline, type Command } from '../scripts/deploy-online';
+import { appCheckEnforced } from '../functions/src/appCheckPolicy';
 import { productionEnvironment, productionOrigin, productionAIConfig } from '../scripts/production-config';
 
 // Exercise the installed CLI contract without invoking its networked deployment commands.
@@ -55,6 +56,7 @@ function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boo
    expect(existsSync(join(stage, '.env.local'))).toBe(false);
    expect(() => firebaseEnv.parseStrict(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8'))).not.toThrow();
    expect(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8')).toContain('AI_ENABLED=true');
+   expect(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8')).toContain('CATALOG_APPCHECK_ENFORCED=' + command.env.VITE_FIREBASE_APPCHECK_ENABLED);
    expect(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8')).toContain('OPENAI_TEXT_MODEL=gpt-6.1-terra');
    expect(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8')).not.toContain('OPENAI_API_KEY=');
    expect(readFileSync(join(root, 'functions/.env.local'), 'utf8')).toContain('AI_ENABLED=true');
@@ -154,7 +156,9 @@ it('usa Enterprise en el preflight y transmite el mismo proveedor al build', asy
  const context = runtime();
  const fetcher = vi.fn<typeof fetch>(async (url, init) => String(url).includes('firebaseappcheck.googleapis.com')
   ? new Response(JSON.stringify({ name: `projects/123456/apps/${raw.VITE_FIREBASE_APP_ID}/recaptchaEnterpriseConfig`, siteKey: raw.VITE_FIREBASE_APPCHECK_SITE_KEY }))
-  : context.fetcher(url, init));
+  : String(url).includes('recaptchaenterprise.googleapis.com')
+   ? new Response(JSON.stringify({ name: `projects/123456/keys/${raw.VITE_FIREBASE_APPCHECK_SITE_KEY}`, webSettings: { integrationType: 'SCORE', allowedDomains: ['rinconcito-verde-cr.web.app', 'rinconcito-verde-cr.firebaseapp.com'] } }))
+   : context.fetcher(url, init));
  await deployOnline({ ...context, fetcher, raw: { ...raw, VITE_FIREBASE_APPCHECK_PROVIDER: 'recaptcha-enterprise' }, checkOnly: true });
  expect(fetcher).toHaveBeenCalledWith(expect.stringContaining('/recaptchaEnterpriseConfig?fields=name,siteKey'), expect.any(Object));
  expect(context.calls.find(command => command.args.includes('check'))?.env.VITE_FIREBASE_APPCHECK_PROVIDER).toBe('recaptcha-enterprise');
@@ -187,4 +191,35 @@ it.each(['missing', 'conditional'] as const)('bloquea la publicación cuando Sto
  const query = context.calls.find(call => call.args.includes('get-iam-policy'))!;
  expect(query.args).toContain('--filter=bindings.role=roles/firebaserules.firestoreServiceAgent AND bindings.members=serviceAccount:service-123456@gcp-sa-firebasestorage.iam.gserviceaccount.com');
  expect(context.calls.some(call => call.args.includes('deploy') || call.args.includes('add-iam-policy-binding'))).toBe(false);
+});
+
+it('pausa App Check solo con la opción explícita y elimina su clave del build', async () => {
+ const context = runtime();
+ await deployOnline({ ...context, withoutAppCheck: true });
+ expect(context.calls.some(command => command.args.includes('print-access-token'))).toBe(false);
+ expect(context.fetcher).not.toHaveBeenCalledWith(expect.stringContaining('firebaseappcheck.googleapis.com'), expect.anything());
+ const build = context.calls.find(command => command.args.includes('check'))!;
+ expect(build.env.VITE_FIREBASE_APPCHECK_ENABLED).toBe('false');
+ expect(build.env.VITE_FIREBASE_APPCHECK_SITE_KEY).toBe('');
+ expect(build.env.CATALOG_APPCHECK_ENFORCED).toBe('false');
+ expect(JSON.parse(readFileSync(join(root, '.firebase/deploy-online-result.json'), 'utf8'))).toMatchObject({ status: 'deployed', appCheckEnforced: false });
+ expect(context.calls.some(command => command.args.includes('get-iam-policy'))).toBe(true);
+ expect(context.calls.some(command => command.args.includes('functions:catalog:adminCommand'))).toBe(true);
+ // A subsequent normal deployment explicitly restores both sides, even in a paused shell.
+ const restored = productionEnvironment({ ...raw, VITE_FIREBASE_APPCHECK_ENABLED: 'false' }, { VITE_FIREBASE_APPCHECK_ENABLED: 'false', CATALOG_APPCHECK_ENFORCED: 'false' });
+ expect(restored.VITE_FIREBASE_APPCHECK_ENABLED).toBe('true'); expect(restored.CATALOG_APPCHECK_ENFORCED).toBe('true');
+});
+it('la pausa permite una clave sin configurar y check no publica', async () => {
+ const context = runtime();
+ await deployOnline({ ...context, raw: { ...raw, VITE_FIREBASE_APPCHECK_SITE_KEY: '' }, withoutAppCheck: true, checkOnly: true });
+ expect(context.calls.some(command => command.args.includes('deploy'))).toBe(false);
+});
+it('la pausa conserva las comprobaciones IAM de fotos privadas', async () => {
+ const context = runtime({ storageGrant: 'missing' });
+ await expect(deployOnline({ ...context, withoutAppCheck: true })).rejects.toThrow('Storage');
+ expect(context.calls.some(command => command.args.includes('deploy'))).toBe(false);
+});
+it('el backend exige App Check por defecto y ante configuraciones ambiguas', () => {
+ expect(appCheckEnforced()).toBe(true); expect(appCheckEnforced('true')).toBe(true); expect(appCheckEnforced('false')).toBe(false);
+ for (const value of ['', 'FALSE', '0', 'off', 'false ']) expect(() => appCheckEnforced(value)).toThrow();
 });
