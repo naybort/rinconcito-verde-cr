@@ -1,6 +1,6 @@
 # Probar OpenAI real con Firebase local
 
-Este modo permite usar el flujo IA desde `/#/admin` sin desplegar Firebase. Está **apagado por defecto**. El desarrollo y las pruebas de esta opción no usaron claves reales ni hicieron llamadas a OpenAI; la prueba real queda a cargo de Bryan tras su configuración local.
+Este modo permite usar el flujo IA desde `/admin` sin desplegar Firebase. Está **apagado por defecto**. El desarrollo y las pruebas de esta opción no usaron claves reales ni hicieron llamadas a OpenAI; la prueba real queda a cargo de Bryan tras su configuración local.
 
 ## Costes y separación de entornos
 
@@ -79,7 +79,7 @@ npm run seed:emulators
 npm run dev -- --host 127.0.0.1
 ```
 
-Abrí `http://127.0.0.1:5173/#/admin`. Para los datos ficticios del seed: `admin@example.test` / `Local-test-123!`. No son usuarios productivos. El seed preserva fichas que ya existan dentro de esa sesión de emuladores.
+Abrí `http://127.0.0.1:5173/admin`. Para los datos ficticios del seed: `admin@example.test` / `Local-test-123!`. No son usuarios productivos. El seed preserva fichas que ya existan dentro de esa sesión de emuladores.
 
 1. Agregar planta → nombre orientativo → tomar/subir foto → **Guardar borrador**.
 2. **Sugerir identificación**. Esperar a que el trabajo aparezca como propuesta lista. Revisar incertidumbre y confirmar/corregir la identificación en el campo humano.

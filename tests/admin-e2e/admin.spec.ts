@@ -2,7 +2,7 @@ import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
 import { expect,test,type Page } from '@playwright/test';
 async function login(page:Page,role='admin'){
- await page.goto('/#/admin');await page.getByRole('textbox',{name:'Correo',exact:true}).fill(role+'@example.test');await page.getByLabel(/^Contraseña/).fill('Local-test-123!');await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
+ await page.goto('/admin');await page.getByRole('textbox',{name:'Correo',exact:true}).fill(role+'@example.test');await page.getByLabel(/^Contraseña/).fill('Local-test-123!');await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
 }
 async function noOverflow(page:Page){expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}
 async function phase(page:Page,step:number){

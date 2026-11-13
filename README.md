@@ -28,16 +28,21 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/Ma
 ```
 Ver `docs/VALIDATION.md`. Pendientes: datos/fotos reales, Safari, dominio y hosting. WhatsApp abre borrador; no envía automáticamente.
 
-## Despliegue Firebase Hosting
-Configuración y procedimiento en [docs/DEVOPS.md](docs/DEVOPS.md).
-Para publicar cambios autorizados en el proyecto existente:
+## Desplegar catálogo y administrador
+
+Preparación inicial, requisitos y revisión en línea: [docs/DEPLOY-ONLINE.md](docs/DEPLOY-ONLINE.md).
+
 ```bash
-npm run deploy -- --project rinconcito-verde-cr
+npm run deploy:online -- --check
+npm run deploy:online
 ```
-Este comando publica el sitio: ejecuta lint, pruebas unitarias, validación JSON, TypeScript y build antes de desplegar exclusivamente Hosting. No crea recursos ni vincula facturación. Sin ID explícito se detiene.
+
+El comando publica en `rinconcito-verde-cr` después de validar configuración cloud, acceso y requisitos existentes; ejecuta pruebas/build, publica backend antes de Hosting y comprueba HTTPS. Requiere la preparación productiva inicial. No activa billing ni IA y no modifica los emuladores.
+
+El comando anterior `npm run deploy -- --project rinconcito-verde-cr` publica exclusivamente Hosting; su antecedente está en [docs/DEVOPS.md](docs/DEVOPS.md).
 
 ## Etapa 2 — administración local
 
-Administrador privado en `/#/admin`, inventario por cantidad/presentación y QR compartido por ficha. Configuración, emuladores, roles, IA opcional y despliegue posterior: [docs/ADMIN-STAGE2.md](docs/ADMIN-STAGE2.md). La configuración productiva permanece pendiente; sin variables Firebase el catálogo JSON sigue funcionando.
+Administrador privado en `/admin`, inventario por cantidad/presentación y QR compartido por ficha. Configuración, emuladores, roles, IA opcional y despliegue posterior: [docs/ADMIN-STAGE2.md](docs/ADMIN-STAGE2.md). La configuración productiva permanece pendiente; sin variables Firebase el catálogo JSON sigue funcionando.
 
 Para probar OpenAI real sin desplegar Firebase, ver [docs/LOCAL-AI.md](docs/LOCAL-AI.md). La opción sigue apagada por defecto y requiere configuración privada del backend; las pruebas automatizadas no hacen llamadas pagas.

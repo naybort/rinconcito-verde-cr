@@ -1,0 +1,100 @@
+import { spawnSync } from 'node:child_process';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { setTimeout as delay } from 'node:timers/promises';
+import { loadEnv } from 'vite';
+import { productionEnvironment, productionProject as project, productionOrigin as origin, firebaseResult } from './production-config.ts';
+
+export type Command = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; capture: boolean };
+type Run = (command: Command) => string;
+const runCommand: Run = ({ command, args, cwd, env, capture }) => {
+ const result = spawnSync(command, args, { cwd, env, shell: false, stdio: capture ? 'pipe' : 'inherit', encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+ if (result.error) throw new Error(`${command}: ${result.error.message}`);
+ if (result.status !== 0) {
+  if (capture && result.stderr) process.stderr.write(result.stderr);
+  throw new Error(`${command} ${args[0] ?? ''} terminó con código ${result.status ?? 'desconocido'}. No se continúa con el despliegue.`);
+ }
+ return result.stdout ?? '';
+};
+type Options = { root: string; raw: Record<string, string>; ambient?: NodeJS.ProcessEnv; checkOnly?: boolean; run?: Run; fetcher?: typeof fetch; log?: (message: string) => void };
+export async function deployOnline({ root, raw, ambient = process.env, checkOnly = false, run = runCommand, fetcher = globalThis.fetch, log = console.log }: Options) {
+ const env = productionEnvironment(raw, ambient);
+ const command = (program: string, args: string[], capture = false) => run({ command: program, args, cwd: root, env, capture });
+ const firebase = (args: string[], capture = false) => command(process.execPath, [join(root, 'node_modules/firebase-tools/lib/bin/firebase.js'), ...args, '--project', project, '--non-interactive'], capture);
+ const json = <T,>(args: string[]) => firebaseResult<T>(firebase([...args, '--json'], true));
+ log('Comprobando sesión y configuración en ' + project + '…');
+ const projects = json<{ projectId: string }[]>(['projects:list']);
+ if (!projects.some(item => item.projectId === project)) throw new Error('La sesión Firebase no tiene acceso al proyecto confirmado.');
+ const billing = JSON.parse(command('gcloud', ['billing', 'projects', 'describe', project, '--project', project, '--format=json', '--quiet'], true));
+ if (billing.billingEnabled !== true) throw new Error('El backend requiere Blaze ya habilitado. Este comando no vincula facturación.');
+ const app = json<{ sdkConfig: Record<string, string> }>(['apps:sdkconfig', 'WEB', raw.VITE_FIREBASE_APP_ID]).sdkConfig;
+ for (const [field, key] of [['projectId', 'VITE_FIREBASE_PROJECT_ID'], ['appId', 'VITE_FIREBASE_APP_ID'], ['apiKey', 'VITE_FIREBASE_API_KEY'], ['authDomain', 'VITE_FIREBASE_AUTH_DOMAIN'], ['storageBucket', 'VITE_FIREBASE_STORAGE_BUCKET']]) {
+  if (app?.[field] !== raw[key]) throw new Error('La configuración Firebase no coincide en ' + key + '.');
+ }
+ json(['firestore:databases:get', '(default)']);
+ command('gcloud', ['storage', 'buckets', 'describe', 'gs://' + raw.VITE_FIREBASE_STORAGE_BUCKET, '--project', project, '--format=json', '--quiet'], true);
+ const apps = json<{ appId: string; providers: string[] }[]>(['appcheck:apps:list']);
+ if (!apps.some(item => item.appId === raw.VITE_FIREBASE_APP_ID && item.providers.includes('recaptcha-v3'))) throw new Error('Configurar App Check reCAPTCHA v3 para esta app antes de publicar el administrador.');
+ log('Ejecutando lint, tipos, pruebas, catálogo y compilaciones…');
+ command('npm', ['run', 'check']);
+ command('npm', ['run', 'build:backend']);
+ // Publishing an empty cloud catalog would hide the existing plants and break printed QR destinations.
+ const plants = JSON.parse(readFileSync(join(root, 'src/data/plants.json'), 'utf8')).plants as { id: string }[];
+ const categories = JSON.parse(readFileSync(join(root, 'src/data/categories.json'), 'utf8')).categories as { id: string }[];
+ for (const [collection, rows] of [['publicPlants', plants], ['publicCategories', categories]] as const) for (const row of rows) {
+  const response = await fetcher(`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/${collection}/${encodeURIComponent(row.id)}?key=${encodeURIComponent(raw.VITE_FIREBASE_API_KEY)}`, { signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`Falta preparar o permitir la lectura pública de ${collection}/${row.id} (HTTP ${response.status}). Migrar preservando los IDs antes de sustituir el catálogo online.`);
+ }
+ if (checkOnly) { log('Comprobaciones completas. No se publicó nada.'); return; }
+ const stateDirectory = join(root, '.firebase'); mkdirSync(stateDirectory, { recursive: true });
+ const stage = mkdtempSync(join(stateDirectory, 'deploy-online-'));
+ const steps: string[] = [];
+ const report = { project, sourceCommit: command('git', ['rev-parse', 'HEAD'], true).trim(), sourceDirty: !!command('git', ['status', '--porcelain', '--untracked-files=normal'], true).trim(), startedAt: new Date().toISOString(), steps, status: 'running', url: origin };
+ const record = () => writeFileSync(join(stateDirectory, 'deploy-online-result.json'), JSON.stringify(report, null, 2) + '\n');
+ record();
+ try {
+  // A temporary source prevents local AI settings, credentials or env files from reaching Functions.
+  const functions = join(stage, 'functions'); mkdirSync(functions);
+  cpSync(join(root, 'functions/lib'), join(functions, 'lib'), { recursive: true });
+  for (const file of ['package.json', 'package-lock.json']) cpSync(join(root, 'functions', file), join(functions, file));
+  symlinkSync(join(root, 'functions/node_modules'), join(functions, 'node_modules'), 'dir');
+  writeFileSync(join(functions, '.env.' + project), 'AI_ENABLED=false\nAI_EMULATOR_OPENAI=false\nFUNCTION_REGION=us-central1\n');
+  const config = JSON.parse(readFileSync(join(root, 'firebase.json'), 'utf8'));
+  delete config.emulators;
+  config.hosting = { ...config.hosting, site: project, public: join(root, 'dist') };
+  config.firestore.rules = join(root, config.firestore.rules); config.firestore.indexes = join(root, config.firestore.indexes);
+  config.storage.rules = join(root, config.storage.rules);
+  config.functions = [{ source: 'functions', codebase: 'catalog', ignore: ['node_modules', '.git', '.env*', '.secret*', '*-debug.log'] }];
+  const configPath = join(stage, 'firebase.json'); writeFileSync(configPath, JSON.stringify(config, null, 2));
+  log('Publicando reglas, índices y la función administrativa; IA permanece apagada…');
+  firebase(['deploy', '--only', 'firestore,storage,functions:catalog:adminCommand', '--config', configPath]);
+  steps.push('backend'); record();
+  log('Publicando Hosting después del backend…');
+  firebase(['deploy', '--only', 'hosting', '--config', configPath]);
+  steps.push('hosting'); record();
+  const html = readFileSync(join(root, 'dist/index.html'), 'utf8').trim();
+  for (const path of ['/', '/admin']) {
+   let verified = false;
+   for (let attempt = 0; attempt < 5; attempt++) {
+    const response = await fetcher(origin + path, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+    if (response.ok && (await response.text()).trim() === html) { verified = true; break; }
+    if (attempt < 4) await delay(1500);
+   }
+   if (!verified) throw new Error('La publicación terminó, pero no se pudo verificar la versión exacta en ' + path + '. Revisar el informe; no repetir a ciegas.');
+  }
+  steps.push('https-version'); report.status = 'deployed'; record();
+  log('Despliegue verificado: ' + origin + ' y ' + origin + '/admin. Revisar inicio/cierre de sesión con una cuenta autorizada.');
+ } catch (error) {
+  report.status = 'incomplete'; record(); throw error;
+ } finally { rmSync(stage, { recursive: true, force: true }); }
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+ const args = process.argv.slice(2);
+ if (args.length > 1 || (args.length === 1 && args[0] !== '--check')) { console.error('Uso: npm run deploy:online [-- --check]'); process.exitCode = 2; }
+ else {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  try { await deployOnline({ root, raw: loadEnv('production', root, 'VITE_'), checkOnly: args[0] === '--check' }); }
+  catch (error) { console.error(error instanceof Error ? error.message : 'No se completó el despliegue.'); process.exitCode = 1; }
+ }
+}

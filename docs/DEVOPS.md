@@ -1,6 +1,6 @@
 # DevOps: Rinconcito Verde CR V1
 
-> Esta sección conserva el antecedente de Hosting V1. La nueva administración serverless local, aún sin despliegue, se documenta en [ADMIN-STAGE2.md](ADMIN-STAGE2.md).
+> Antecedente del despliegue estático V1. El comando actual para catálogo y administración, sus requisitos y estado pendiente se documentan en [DEPLOY-ONLINE.md](DEPLOY-ONLINE.md).
 
 ## Arquitectura
 React/TypeScript/Vite genera un sitio estático en `dist/`. Firebase **Hosting**, no App Hosting, sirve catálogo, imágenes y aplicación. Sin servidor, Cloud Run, Functions, Firestore ni pagos. Favoritos en localStorage por navegador; WhatsApp abre un borrador. JSON del catálogo se empaqueta en cada build, por lo que cambiarlo requiere nuevo despliegue.

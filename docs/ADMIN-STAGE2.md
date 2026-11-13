@@ -18,7 +18,7 @@ npm run seed:emulators
 npm run dev -- --host 127.0.0.1
 ```
 
-Abrir `http://127.0.0.1:5173/#/admin`. El seed crea exclusivamente cuentas ficticias en Auth Emulator: `admin@example.test`, `editor@example.test` y `outsider@example.test`, con contraseña `Local-test-123!`. La última no recibe permisos. El script exige hosts de localhost y uno de los dos proyectos demo autorizados; no sirve para provisionar usuarios reales.
+Abrir `http://127.0.0.1:5173/admin` (o `/admin` en el puerto de Vite que ya esté activo). Los enlaces anteriores `/#/admin` y `/#admin` se convierten a `/admin`; las URL de plantas y sus QR se conservan. La ruta no activa Firebase: el modo local sigue requiriendo `VITE_FIREBASE_MODE=emulator` y la configuración existente. No hace falta reiniciar ni volver a sembrar emuladores para cambiar esta ruta. El seed crea exclusivamente cuentas ficticias en Auth Emulator: `admin@example.test`, `editor@example.test` y `outsider@example.test`, con contraseña `Local-test-123!`. La última no recibe permisos. El script exige hosts de localhost y uno de los dos proyectos demo autorizados; no sirve para provisionar usuarios reales.
 
 Puertos propios para no interferir con AFP u otros emuladores: Auth 19099, Firestore 18080, Storage 19199, Functions 15001, UI 14000, hub 14400, logs 14500, WebSocket Firestore 19150, Eventarc 19299 y tareas 19499. El proyecto es siempre `demo-rinconcito-verde`. El backend de IA sigue apagado por defecto; existe una opción local explícita y aislada para OpenAI real, documentada en [LOCAL-AI.md](LOCAL-AI.md). `AI_ENABLED=true` por sí solo no la habilita en emuladores.
 
@@ -71,9 +71,9 @@ En producción: máximo cinco trabajos por usuario/día UTC y treinta por proyec
 
 Referencias verificadas: [emuladores de Functions](https://firebase.google.com/docs/functions/local-emulator), [configuración de Emulator Suite](https://firebase.google.com/docs/emulator-suite/install_and_configure), [búsqueda en Responses](https://developers.openai.com/api/docs/guides/tools-web-search), [Images Edits](https://developers.openai.com/api/reference/resources/images/methods/edit).
 
-## Configuración y despliegue posteriores
+## Configuración y despliegue online
 
-No se hizo push ni deploy. No se activó Blaze, facturación, API, Storage/Firestore productivos, App Check ni usuarios reales. Antes de cualquier activación:
+El código de las mejoras visuales y colecciones ya está en el repositorio. La publicación del backend permanece pendiente. El comando actual `npm run deploy:online`, los requisitos productivos y la validación se describen en [DEPLOY-ONLINE.md](DEPLOY-ONLINE.md). No se activaron Blaze, facturación ni usuarios reales desde esta preparación. Antes de la primera publicación:
 
 - Confirmar proyecto, región, bucket, presupuesto, límites y personas/roles concretos. La región de desarrollo es `us-central1`; Functions acepta `FUNCTION_REGION` y el cliente `VITE_FIREBASE_REGION`. No cambiarla tras desplegar sin plan de migración.
 - Habilitar servicios solo con autorización. Auth debe admitir únicamente cuentas administrativas provisionadas; el registro de una cuenta en Auth por sí solo no concede acceso, pero revisar también restricciones de creación de cuentas del proveedor.

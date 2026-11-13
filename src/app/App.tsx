@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { useRoute } from './useRoute';
+import { AdminShortcut } from '../features/admin/AdminShortcut';
 import { Alert, Box, Button, Chip, Container, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
 import { PlantIcon } from '../shared/PlantIcon';
 import business from '../config/business.json';
@@ -12,14 +14,9 @@ import { PlantGallery } from '../features/catalog/PlantGallery';
 import { useFavorites } from '../features/favorites/useFavorites';
 import { buildMessage, buildWhatsAppLink } from '../features/contact/whatsapp';
 
-function useRoute() {
- const [route, setRoute] = useState(window.location.hash || '#/');
- useEffect(() => { const update = () => setRoute(window.location.hash || '#/'); window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update); }, []);
- return route;
-}
 export default function App() {
  const route=useRoute();
- if(route.startsWith('#/admin'))return <Suspense fallback={<Typography role="status">Cargando administración…</Typography>}><Admin/></Suspense>;
+ if(route==='#/admin')return <Suspense fallback={<Typography role="status">Cargando administración…</Typography>}><Admin/></Suspense>;
  return <PublicCatalog/>;
 }
 function PublicCatalog(){
@@ -56,8 +53,9 @@ function CatalogView({catalog}:{catalog:Catalog}) {
  return <>
   <Box component="a" href="#contenido" sx={{ position: 'fixed', top: -100, left: 16, zIndex: 2000, bgcolor: 'white', p: 2, '&:focus': { top: 8 } }} onClick={event => { event.preventDefault(); heading.current?.focus(); }}>Saltar al contenido</Box>
   <Box component="header" sx={{ bgcolor: 'background.default', borderBottom: '1px solid #e7ece8' }}>
-   <Container maxWidth="lg" sx={{ py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+   <Container maxWidth="lg" sx={{ py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
     <Typography component="a" href="#/" sx={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, fontSize: { xs: 18, md: 26 }, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}><Box component="img" src="/rinconcito-icon.png" alt="" sx={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />{business.name}</Typography>
+    <AdminShortcut/>
    </Container>
   </Box>
   {favorites.warning && <Container maxWidth="lg"><Alert severity="info" sx={{ my: 1 }}>{favorites.warning}</Alert></Container>}

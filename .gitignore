@@ -4,6 +4,7 @@ playwright-report/
 test-results/
 .env*
 !.env.example
+!.env.production.example
 
 # Firebase local cache and diagnostic logs
 .firebase/
