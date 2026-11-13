@@ -75,7 +75,7 @@ Referencias verificadas: [emuladores de Functions](https://firebase.google.com/d
 
 El código de las mejoras visuales y colecciones ya está en el repositorio. La publicación del backend permanece pendiente. El comando actual `npm run deploy:online`, los requisitos productivos y la validación se describen en [DEPLOY-ONLINE.md](DEPLOY-ONLINE.md). No se activaron Blaze, facturación ni usuarios reales desde esta preparación. Antes de la primera publicación:
 
-- Confirmar proyecto, región, bucket, presupuesto, límites y personas/roles concretos. La región de desarrollo es `us-central1`; Functions acepta `FUNCTION_REGION` y el cliente `VITE_FIREBASE_REGION`. No cambiarla tras desplegar sin plan de migración.
+- Confirmar proyecto, región, bucket, presupuesto, límites y personas/roles concretos. La región de Functions está fijada en código a `us-central1`; el cliente usa `VITE_FIREBASE_REGION=us-central1`. `FUNCTION_REGION` es un nombre reservado por Firebase y no debe escribirse en archivos `.env`. No cambiar la región tras desplegar sin plan de migración.
 - Habilitar servicios solo con autorización. Auth debe admitir únicamente cuentas administrativas provisionadas; el registro de una cuenta en Auth por sí solo no concede acceso, pero revisar también restricciones de creación de cuentas del proveedor.
 - Provisionar claims y `adminUsers` fuera del cliente, con privilegios controlados. No reutilizar usuarios/contraseñas del seed.
 - Configurar App Check (`VITE_FIREBASE_APPCHECK_SITE_KEY`) para las callables cloud; en producción el backend lo exige. Revisar dominios autorizados y CORS de Storage para las lecturas autenticadas de fotos.

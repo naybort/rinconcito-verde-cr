@@ -2,9 +2,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { deployOnline, type Command } from '../scripts/deploy-online';
 import { productionEnvironment, productionOrigin, productionAIConfig } from '../scripts/production-config';
+
+// Exercise the installed CLI contract without invoking its networked deployment commands.
+const firebaseEnv = createRequire(import.meta.url)('firebase-tools/lib/functions/env') as { parseStrict: (text: string) => Record<string, string> };
 
 const raw = {
  VITE_FIREBASE_MODE: 'cloud', VITE_FIREBASE_PROJECT_ID: 'rinconcito-verde-cr',
@@ -48,6 +52,7 @@ function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boo
    expect(config.emulators).toBeUndefined(); expect(config.hosting.site).toBe(raw.VITE_FIREBASE_PROJECT_ID);
    const stage = join(args[args.indexOf('--config') + 1], '../functions');
    expect(existsSync(join(stage, '.env.local'))).toBe(false);
+   expect(() => firebaseEnv.parseStrict(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8'))).not.toThrow();
    expect(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8')).toContain('AI_ENABLED=true');
    expect(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8')).toContain('OPENAI_TEXT_MODEL=gpt-6.1-terra');
    expect(readFileSync(join(stage, '.env.' + raw.VITE_FIREBASE_PROJECT_ID), 'utf8')).not.toContain('OPENAI_API_KEY=');
@@ -153,4 +158,11 @@ it('usa Enterprise en el preflight y transmite el mismo proveedor al build', asy
  expect(fetcher).toHaveBeenCalledWith(expect.stringContaining('/recaptchaEnterpriseConfig?fields=name,siteKey'), expect.any(Object));
  expect(context.calls.find(command => command.args.includes('check'))?.env.VITE_FIREBASE_APPCHECK_PROVIDER).toBe('recaptcha-enterprise');
  expect(context.calls.some(command => command.args.includes('deploy'))).toBe(false);
+});
+
+it('el parser real de Firebase acepta la configuración de Functions y rechaza nombres reservados', () => {
+ const config = productionAIConfig({ OPENAI_TEXT_MODEL: 'fixture-text-model', OPENAI_IMAGE_MODEL: 'fixture-image-model' });
+ const contents = Object.entries(config).map(([key, value]) => key + '=' + value).join('\n') + '\n';
+ expect(firebaseEnv.parseStrict(contents)).toEqual(config);
+ expect(() => firebaseEnv.parseStrict(contents + 'FUNCTION_REGION=us-central1\n')).toThrow();
 });

@@ -33,5 +33,5 @@ export function productionAIConfig(raw: Record<string, string>) {
  const textModel = raw.OPENAI_TEXT_MODEL?.trim(), imageModel = raw.OPENAI_IMAGE_MODEL?.trim();
  if (!textModel || !imageModel) throw new Error('El despliegue completo requiere OPENAI_TEXT_MODEL y OPENAI_IMAGE_MODEL en .env.production.local. La clave va en Secret Manager, no en este archivo.');
  for (const value of [textModel, imageModel]) if (!/^[a-z0-9][a-z0-9._:-]{1,127}$/i.test(value) || /^(sk-|demo-|test-|configured-|completar|pendiente)/i.test(value)) throw new Error('Usar IDs reales de modelos OpenAI; no claves ni valores de ejemplo.');
- return { AI_ENABLED: 'true', AI_EMULATOR_OPENAI: 'false', FUNCTION_REGION: 'us-central1', OPENAI_TEXT_MODEL: textModel, OPENAI_IMAGE_MODEL: imageModel };
+ return { AI_ENABLED: 'true', AI_EMULATOR_OPENAI: 'false', OPENAI_TEXT_MODEL: textModel, OPENAI_IMAGE_MODEL: imageModel };
 }

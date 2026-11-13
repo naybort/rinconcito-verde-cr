@@ -16,7 +16,8 @@ if(emulator)assertEmulatorIsolation(process.env);
 // Explicit demo targets plus validated emulator endpoints prevent local data access to production.
 initializeApp(emulator?localFirebaseOptions(process.env):undefined);
 const db=getFirestore();
-const region=process.env.FUNCTION_REGION || 'us-central1';
+// Deployment region is explicit; FUNCTION_REGION is reserved by Firebase.
+const region='us-central1';
 const apiKey=defineSecret('OPENAI_API_KEY');
 const options={region,maxInstances:4,concurrency:20,timeoutSeconds:60,enforceAppCheck:!emulator};
 const envelope=z.object({requestId:z.string().uuid(),action:z.enum(['savePlant','review','publish','archive','restore','saveTaxonomy','inventory','presentation','requestAI']),payload:z.unknown()}).strict();
