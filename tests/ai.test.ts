@@ -35,13 +35,18 @@ it('trabajos duplicados, lease vencido y máximo de intentos no duplican la gene
  expect(claimAI({status:'queued',attempts:3},100).action).toBe('fail');
  expect(claimAI({status:'ready',attempts:1},100).action).toBe('skip');
  expect(claimAI({status:'failed',attempts:1},100).action).toBe('skip');
- expect(canAdmitAI(4,29)).toBe(true);expect(canAdmitAI(5,29)).toBe(false);expect(canAdmitAI(0,30)).toBe(false);
+});
+
+it.each([
+ [5,30,true], [49,199,true], [50,199,false], [0,200,false], [49,200,false], [50,200,false], [51,201,false],
+])('cupo productivo: usuario %i, proyecto %i, admisión %s', (userCount, projectCount, allowed) => {
+ expect(canAdmitAI(userCount, projectCount)).toBe(allowed);
 });
 
 it('las pruebas locales no tienen cupo diario y producción conserva los límites',()=>{
  expect(canAdmitAI(100,1000,'emulator')).toBe(true);
- expect(canAdmitAI(5,29,'production')).toBe(false);expect(canAdmitAI(4,30,'production')).toBe(false);
- expect(canAdmitAI(100,1000)).toBe(false);expect(canAdmitAI(4,29,'production')).toBe(true);
+ expect(canAdmitAI(50,199,'production')).toBe(false);expect(canAdmitAI(49,200,'production')).toBe(false);
+ expect(canAdmitAI(100,1000)).toBe(false);expect(canAdmitAI(49,199,'production')).toBe(true);
 });
 
 it.each(['identify','content','enhance'] as const)('transmite preferencias de %s sin elevarlas sobre salvaguardas ni mezclar texto de referencia',async kind=>{

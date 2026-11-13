@@ -20,6 +20,16 @@ Blaze está activo. La app web, Enterprise, Firestore `(default)` en `us-central
 
 La copia cloud sigue sin sesión Firebase/gcloud y sin acceso a la Mac. El propietario ejecutó los cambios de producción y el login en su terminal/navegador. La pausa solicitada cambia el cliente y la función administrativa, por lo que requiere un nuevo despliegue. Prepararla o superar pruebas locales no significa que ya esté aplicada en producción.
 
+### Aumento de cupos solicitado — 13 de noviembre de 2026
+
+El propietario informó que el sitio funciona y que alcanzó el límite diario. Se elevaron los topes de admisión de 5/30 a **50 por usuario y 200 para el proyecto**. Se probaron los límites exactos: una solicitud con contadores 49/199 se admite; llegar a 50 por usuario o 200 globales bloquea la siguiente. La prueba de regresión admite el consumo 5/30 que antes bloqueaba el acceso. El cambio necesita desplegar el backend; no modifica los contadores ni genera IA para validarlo. Se conserva la pausa de App Check autorizada usando:
+
+```bash
+git pull --ff-only origin main && npm run deploy:online -- --without-app-check
+```
+
+Este comando actualiza la aplicación sin ejecutar la prueba pagada de IA automáticamente. La confirmación del propietario sobre el funcionamiento es distinta del informe completo de verificación online, que todavía no se ha recibido en esta sesión.
+
 ## Preparación inicial
 
 ### Pausa temporal de App Check solicitada por el propietario
@@ -254,7 +264,7 @@ La ejecución completa:
 - Compara el SHA-256 de la fotografía original descargada con el archivo inicial. Deja las propuestas sin aceptar y el borrador sin publicar; no realiza movimientos de inventario.
 - Comprueba el botón «Administrar» en el catálogo, su desaparición al salir y el ancho móvil. Guarda `result.json`, IDs de trabajos y capturas en `.firebase/online-qa/<fecha>/` (ignorado por Git).
 
-La prueba hace tres solicitudes de trabajo; los reintentos acotados del backend ante fallos temporales pueden implicar más llamadas al proveedor. Producción conserva los límites de cinco trabajos por usuario/día UTC y treinta por proyecto/día UTC. Repetir la prueba completa crea otro borrador y consume cuota. Si hay un fallo, revisar los trabajos ya aceptados antes de repetir; no se reenvía automáticamente la secuencia.
+La prueba hace tres solicitudes de trabajo; los reintentos acotados del backend ante fallos temporales pueden implicar más llamadas al proveedor. Por solicitud del propietario, el código admite **50 trabajos por usuario/día UTC y 200 en total por proyecto/día UTC**. Ambos topes se aplican a la vez. El día cambia a las 18:00 de Costa Rica; cada trabajo aceptado cuenta aunque después falle. El aumento conserva los contadores existentes: no borra ni reinicia el consumo del día. Repetir la prueba completa crea otro borrador y consume cuota. Si hay un fallo, revisar los trabajos ya aceptados antes de repetir; no se reenvía automáticamente la secuencia.
 
 Para comprobar la segunda cuenta sin nuevos trabajos IA:
 

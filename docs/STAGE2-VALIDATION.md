@@ -85,7 +85,7 @@ El siguiente intento manual del usuario produjo un diagnóstico verificable: `pr
 
 ## Retiro autorizado del cupo diario local
 
-Bryan solicitó quitar el límite diario que bloqueaba sus pruebas. La admisión en los emuladores demo autorizados ya no impone topes por usuario/proyecto; producción conserva 5/30 solicitudes diarias. Los contadores siguen aumentando de manera idempotente y no se borran trabajos, datos ni historial. Se mantienen los límites del proveedor, los tres intentos por trabajo y las restricciones de tamaño/salida.
+Bryan solicitó quitar el límite diario que bloqueaba sus pruebas. La admisión en los emuladores demo autorizados ya no impone topes por usuario/proyecto; en esa etapa producción conservaba 5/30 solicitudes diarias. El 13 de noviembre de 2026 el propietario autorizó aumentarlas a 50 por usuario y 200 por proyecto; ver `DEPLOY-ONLINE.md`. Los contadores siguen aumentando de manera idempotente y no se borran trabajos, datos ni historial. Se mantienen los límites del proveedor, los tres intentos por trabajo y las restricciones de tamaño/salida.
 
 La extracción limitada de configuración no secreta confirmó `OPENAI_TEXT_MODEL=gpt-6.1-terra` y `OPENAI_IMAGE_MODEL=gpt-image-2.6-sunburst` en el backend local. El mensaje de modelo faltante ahora identifica la variable correspondiente a la acción y se rechazan valores vacíos o de solo espacios. No se extrajeron ni mostraron valores de claves.
 

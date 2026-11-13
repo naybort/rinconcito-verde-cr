@@ -1,6 +1,6 @@
 export type JobState={status:string;attempts:number;leaseUntil?:number};
-export const AI_USER_DAILY_LIMIT=5;
-export const AI_PROJECT_DAILY_LIMIT=30;
+export const AI_USER_DAILY_LIMIT=50;
+export const AI_PROJECT_DAILY_LIMIT=200;
 // Local opt-in testing has no daily admission cap; counters and idempotency remain active.
 export function canAdmitAI(userCount:number,projectCount:number,runtime:'production'|'emulator'='production'){return runtime==='emulator'||(userCount<AI_USER_DAILY_LIMIT&&projectCount<AI_PROJECT_DAILY_LIMIT);}
 export function claimAI(job:JobState,now:number):{action:'skip'|'wait'|'run'|'fail';error?:string}{
