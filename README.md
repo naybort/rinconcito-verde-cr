@@ -34,7 +34,9 @@ Preparación inicial, comandos `prepare:online` para catálogo/roles, requisitos
 
 ```bash
 npm run configure:online
-# Completar App Check, modelos y requisitos iniciales indicados en la guía.
+# Solo para la app ya registrada con Enterprise:
+npm run check:appcheck -- --configure-enterprise
+# Completar modelos, CORS, catálogo y roles según la guía.
 npm run check:appcheck
 npm run deploy:online -- --check
 npm run release:online

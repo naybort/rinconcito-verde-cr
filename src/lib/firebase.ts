@@ -3,7 +3,8 @@ import { connectAuthEmulator, getAuth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaV3Provider, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import { appCheckProviderName } from './appCheckConfig';
 const env=import.meta.env;
 export const firebaseMode=env.VITE_FIREBASE_MODE as string|undefined;
 function configure(){
@@ -12,7 +13,10 @@ function configure(){
  if(local&&(!['localhost','127.0.0.1'].includes(location.hostname)||!['demo-rinconcito-verde','demo-rinconcito-verde-tests'].includes(env.VITE_FIREBASE_PROJECT_ID)||env.VITE_FIREBASE_STORAGE_BUCKET!==env.VITE_FIREBASE_PROJECT_ID+'.appspot.com'))throw new Error('Los emuladores requieren localhost, el proyecto demo-rinconcito-verde y su bucket local.');
  if(!local&&firebaseMode!=='cloud')throw new Error('Modo Firebase inválido.');
  const app=initializeApp({projectId:env.VITE_FIREBASE_PROJECT_ID,apiKey:env.VITE_FIREBASE_API_KEY,authDomain:env.VITE_FIREBASE_AUTH_DOMAIN,storageBucket:env.VITE_FIREBASE_STORAGE_BUCKET,appId:env.VITE_FIREBASE_APP_ID});
- if(!local&&env.VITE_FIREBASE_APPCHECK_SITE_KEY)initializeAppCheck(app,{provider:new ReCaptchaV3Provider(env.VITE_FIREBASE_APPCHECK_SITE_KEY),isTokenAutoRefreshEnabled:true});
+ if(!local&&env.VITE_FIREBASE_APPCHECK_SITE_KEY){
+  const Provider=appCheckProviderName(env.VITE_FIREBASE_APPCHECK_PROVIDER)==='recaptcha-enterprise'?ReCaptchaEnterpriseProvider:ReCaptchaV3Provider;
+  initializeAppCheck(app,{provider:new Provider(env.VITE_FIREBASE_APPCHECK_SITE_KEY),isTokenAutoRefreshEnabled:true});
+ }
  const auth=getAuth(app),db=getFirestore(app),storage=getStorage(app),functions=getFunctions(app,env.VITE_FIREBASE_REGION||'us-central1');
  if(local){
   const port=(key:string,fallback:number)=>{const n=Number(env[key]||fallback);if(!Number.isInteger(n)||n<1||n>65535)throw new Error('Puerto local inválido.');return n;};

@@ -1,12 +1,14 @@
+import { appCheckProviderName } from '../src/lib/appCheckConfig.ts';
 export const productionProject = 'rinconcito-verde-cr';
 export const productionOrigin = `https://${productionProject}.web.app`;
 const publicKeys = [
  'VITE_FIREBASE_MODE', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_API_KEY',
  'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_APP_ID',
- 'VITE_FIREBASE_REGION', 'VITE_FIREBASE_APPCHECK_SITE_KEY',
+ 'VITE_FIREBASE_REGION', 'VITE_FIREBASE_APPCHECK_SITE_KEY', 'VITE_FIREBASE_APPCHECK_PROVIDER',
 ];
 export function productionEnvironment(raw: Record<string, string>, ambient: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
- const missing = publicKeys.filter(key => !raw[key]?.trim());
+ const provider = appCheckProviderName(raw.VITE_FIREBASE_APPCHECK_PROVIDER);
+ const missing = publicKeys.filter(key => key !== 'VITE_FIREBASE_APPCHECK_PROVIDER' && !raw[key]?.trim());
  if (missing.length) throw new Error('Falta configuración pública de producción: ' + missing.join(', ') + '. Ver docs/DEPLOY-ONLINE.md.');
  if (raw.VITE_FIREBASE_MODE !== 'cloud') throw new Error('El despliegue online requiere VITE_FIREBASE_MODE=cloud; no se publica un build de emuladores.');
  if (raw.VITE_FIREBASE_PROJECT_ID !== productionProject) throw new Error('El destino debe ser ' + productionProject + '.');
@@ -19,7 +21,7 @@ export function productionEnvironment(raw: Record<string, string>, ambient: Node
  const env = { ...ambient };
  for (const key of Object.keys(env)) if (key.startsWith('VITE_') || key.startsWith('OPENAI_') || key.startsWith('AI_') || key.endsWith('_EMULATOR_HOST') || ['FIREBASE_EMULATOR_HUB', 'FUNCTIONS_EMULATOR', 'FIREBASE_APPCHECK_DEBUG_TOKEN'].includes(key)) delete env[key];
  for (const key of publicKeys) env[key] = raw[key];
- return { ...env, AI_ENABLED: 'false', AI_EMULATOR_OPENAI: 'false', CI: 'true' };
+ return { ...env, VITE_FIREBASE_APPCHECK_PROVIDER: provider, AI_ENABLED: 'false', AI_EMULATOR_OPENAI: 'false', CI: 'true' };
 }
 export function firebaseResult<T>(text: string): T {
  const response = JSON.parse(text) as { status: string; result: T };

@@ -28,7 +28,7 @@ beforeEach(() => {
  writeFileSync(join(root, 'functions/.env.local'), 'AI_ENABLED=true\nOPENAI_LOCAL_API_KEY=private-fixture-do-not-copy\n');
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
-function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boolean; smokeFailure?: boolean; secretEnabled?: boolean; foreignWorker?: boolean } = {}) {
+function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boolean; smokeFailure?: boolean; secretEnabled?: boolean; foreignWorker?: boolean; missingCors?: boolean } = {}) {
  const calls: Command[] = [];
  const run = vi.fn((command: Command) => {
   calls.push(command);
@@ -37,6 +37,7 @@ function runtime(options: { fail?: string; billing?: boolean; missingPlant?: boo
   if (args.includes('projects:list')) return JSON.stringify({ status: 'success', result: [{ projectId: raw.VITE_FIREBASE_PROJECT_ID }] });
   if (args.includes('secrets')) return JSON.stringify({ state: options.secretEnabled === false ? 'DISABLED' : 'ENABLED' });
   if (args.includes('functions:list')) return JSON.stringify({ status: 'success', result: options.foreignWorker ? [{ id: 'processAI', region: 'europe-west1', platform: 'gcfv2', codebase: 'catalog' }] : [] });
+  if (args.includes('buckets')) return JSON.stringify({ name: raw.VITE_FIREBASE_STORAGE_BUCKET, cors: options.missingCors ? [] : [{ origin: [productionOrigin, 'https://rinconcito-verde-cr.firebaseapp.com'], method: ['GET'] }] });
   if (args.includes('billing')) return JSON.stringify({ billingEnabled: options.billing !== false });
   if (args.includes('apps:sdkconfig')) return JSON.stringify({ status: 'success', result: { sdkConfig: { projectId: raw.VITE_FIREBASE_PROJECT_ID, appId: raw.VITE_FIREBASE_APP_ID, apiKey: raw.VITE_FIREBASE_API_KEY, authDomain: raw.VITE_FIREBASE_AUTH_DOMAIN, storageBucket: raw.VITE_FIREBASE_STORAGE_BUCKET } } });
   if (args.includes('firestore:databases:get')) return JSON.stringify({ status: 'success', result: { name: '(default)' } });
@@ -104,7 +105,7 @@ it('no informa éxito si la verificación HTTPS falla después de publicar', asy
 });
 it.each<Record<string, string>>([
  { VITE_FIREBASE_MODE: 'emulator' }, { VITE_FIREBASE_PROJECT_ID: 'other-project' },
- { VITE_FIREBASE_APP_ID: '' }, { VITE_FIREBASE_APPCHECK_SITE_KEY: '' },
+ { VITE_FIREBASE_APP_ID: '' }, { VITE_FIREBASE_APPCHECK_SITE_KEY: '' }, { VITE_FIREBASE_APPCHECK_PROVIDER: 'unknown' },
  { VITE_FIREBASE_STORAGE_BUCKET: 'other-project.appspot.com' }, { VITE_OPENAI_API_KEY: 'private-fixture' },
 ])('rechaza configuración insegura antes de usar herramientas: %j', async invalid => {
  const context = runtime(); await expect(deployOnline({ ...context, raw: { ...raw, ...invalid } })).rejects.toThrow();
@@ -135,4 +136,21 @@ it('un fallo al publicar adminCommand conserva el registro del worker y bloquea 
  const context = runtime({ fail: 'functions:catalog:adminCommand' }); await expect(deployOnline(context)).rejects.toThrow('simulated');
  expect(context.calls.filter(command => command.args.includes('deploy'))).toHaveLength(3);
  expect(JSON.parse(readFileSync(join(root, '.firebase/deploy-online-result.json'), 'utf8'))).toMatchObject({ status: 'incomplete', steps: ['rules', 'ai-worker'] });
+});
+
+it('no publica si CORS impide descargar fotos desde los dominios del catálogo', async () => {
+ const context = runtime({ missingCors: true });
+ await expect(deployOnline(context)).rejects.toThrow('CORS');
+ expect(context.calls.some(command => command.args.includes('deploy'))).toBe(false);
+});
+
+it('usa Enterprise en el preflight y transmite el mismo proveedor al build', async () => {
+ const context = runtime();
+ const fetcher = vi.fn<typeof fetch>(async (url, init) => String(url).includes('firebaseappcheck.googleapis.com')
+  ? new Response(JSON.stringify({ name: `projects/123456/apps/${raw.VITE_FIREBASE_APP_ID}/recaptchaEnterpriseConfig`, siteKey: raw.VITE_FIREBASE_APPCHECK_SITE_KEY }))
+  : context.fetcher(url, init));
+ await deployOnline({ ...context, fetcher, raw: { ...raw, VITE_FIREBASE_APPCHECK_PROVIDER: 'recaptcha-enterprise' }, checkOnly: true });
+ expect(fetcher).toHaveBeenCalledWith(expect.stringContaining('/recaptchaEnterpriseConfig?fields=name,siteKey'), expect.any(Object));
+ expect(context.calls.find(command => command.args.includes('check'))?.env.VITE_FIREBASE_APPCHECK_PROVIDER).toBe('recaptcha-enterprise');
+ expect(context.calls.some(command => command.args.includes('deploy'))).toBe(false);
 });

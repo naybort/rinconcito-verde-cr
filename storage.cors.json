@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://rinconcito-verde-cr.web.app",
+      "https://rinconcito-verde-cr.firebaseapp.com"
+    ],
+    "method": [
+      "GET"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

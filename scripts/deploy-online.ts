@@ -35,9 +35,13 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
   if (app?.[field] !== raw[key]) throw new Error('La configuración Firebase no coincide en ' + key + '.');
  }
  json(['firestore:databases:get', '(default)']);
- command('gcloud', ['storage', 'buckets', 'describe', 'gs://' + raw.VITE_FIREBASE_STORAGE_BUCKET, '--project', project, '--format=json', '--quiet'], true);
+ const bucket = JSON.parse(command('gcloud', ['storage', 'buckets', 'describe', 'gs://' + raw.VITE_FIREBASE_STORAGE_BUCKET, '--project', project, '--raw', '--format=json', '--quiet'], true)) as { name?: string; cors?: { origin?: string[]; method?: string[] }[] };
+ if (bucket.name !== raw.VITE_FIREBASE_STORAGE_BUCKET) throw new Error('Storage no confirmó el bucket esperado.');
+ for (const site of [origin, `https://${project}.firebaseapp.com`]) {
+  if (!bucket.cors?.some(rule => rule.method?.includes('GET') && (rule.origin?.includes(site) || rule.origin?.includes('*')))) throw new Error('Falta CORS para descargar fotografías desde ' + site + '. Revisar storage.cors.json y docs/DEPLOY-ONLINE.md antes de publicar.');
+ }
  const projectNumber = command('gcloud', ['projects', 'describe', project, '--project', project, '--format=value(projectNumber)', '--quiet'], true).trim();
- await checkAppCheck({ appId: raw.VITE_FIREBASE_APP_ID, projectNumber, getAccessToken: () => command('gcloud', ['auth', 'print-access-token', '--project', project, '--quiet'], true), fetcher });
+ await checkAppCheck({ appId: raw.VITE_FIREBASE_APP_ID, projectNumber, provider: raw.VITE_FIREBASE_APPCHECK_PROVIDER, expectedSiteKey: raw.VITE_FIREBASE_APPCHECK_SITE_KEY, getAccessToken: () => command('gcloud', ['auth', 'print-access-token', '--project', project, '--quiet'], true), fetcher });
  const secret = JSON.parse(command('gcloud', ['secrets', 'versions', 'describe', 'latest', '--secret=OPENAI_API_KEY', '--project', project, '--format=json', '--quiet'], true));
  if (secret.state !== 'ENABLED') throw new Error('OPENAI_API_KEY necesita una versión habilitada en Secret Manager. No se leyó el contenido del secreto.');
  const functions = json<{ id: string; region: string; platform: string; codebase?: string; labels?: Record<string, string> }[]>(['functions:list']);

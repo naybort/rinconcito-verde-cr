@@ -14,9 +14,9 @@ Incluye QR con marca, fotografía con identidad, detalle ampliado, paginación y
 
 El propietario autorizó el despliegue completo, las pruebas reales de IA y la vinculación de facturación. Después del error inicial `429`, confirmó `billingEnabled: True` desde su Mac. También ejecutó el pull y `configure:online`: la app web quedó registrada y `.env.production.local` guardado. No se repiten estos pasos ni se crean apps adicionales.
 
-**La publicación y las pruebas reales siguen pendientes.** El propietario confirmó en su Mac: APIs Firestore/App Check habilitadas; base `(default)` creada en `us-central1`, edición Standard y modo Native; bucket `rinconcito-verde-cr.firebasestorage.app` creado; dos cuentas administrativas creadas en Authentication; versión 1 de `OPENAI_API_KEY` creada en Secret Manager. También reportó completados el registro reCAPTCHA v3 y los modelos/clave pública de App Check en `.env.production.local`.
+**La publicación y las pruebas reales siguen pendientes.** El propietario confirmó en su Mac: APIs Firestore/App Check habilitadas; base `(default)` creada en `us-central1`, edición Standard y modo Native; bucket `rinconcito-verde-cr.firebasestorage.app` creado; dos cuentas administrativas creadas en Authentication; versión 1 de `OPENAI_API_KEY` creada en Secret Manager. También reportó configurados los modelos y la clave pública de App Check. Después confirmó que la app está registrada con **reCAPTCHA Enterprise**, mientras el cliente y la comprobación anteriores esperaban v3; esa diferencia detenía la preparación.
 
-Falta verificar el registro App Check con la consulta corregida, asignar los dos mecanismos de acceso admin, migrar las fichas/categorías, comprobar CORS y publicar reglas/backend/Hosting. No hay un presupuesto mensual configurado ni se supone un límite monetario concreto.
+El último bloque se detuvo en `check:appcheck`, antes de migrar fichas, asignar roles o publicar reglas. La consulta CORS devolvió `null`: todavía no hay configuración. Esta entrega permite sincronizar el proveedor/clave pública Enterprise y aporta el archivo CORS para ambos dominios. Falta ejecutar esa preparación, verificarla y publicar reglas/backend/Hosting. No hay un presupuesto mensual configurado ni se supone un límite monetario concreto.
 
 La copia cloud continúa sin sesión Firebase/gcloud y sin acceso a la Mac. Los cambios de producción anteriores los ejecutó el propietario en su terminal. La configuración de los emuladores se conserva. El CLI de la Mac no reconoce `appcheck:apps:list`; ahora se usa la API REST oficial y `npm run check:appcheck`. Las peticiones REST incluyen `X-Goog-User-Project: rinconcito-verde-cr` para evitar usar el proyecto compartido del cliente OAuth de gcloud como proyecto de cuota. [Comportamiento documentado de gcloud](https://cloud.google.com/sdk/gcloud/reference/auth/print-access-token).
 
@@ -46,13 +46,13 @@ npm run configure:online
 
 Consulta las apps web del proyecto; si no hay ninguna, registra `Rinconcito Verde Web`. Reutiliza una app existente; si hay varias, se detiene para evitar elegir otra por error. Obtiene del CLI los valores públicos reales y escribe `.env.production.local`. Conserva una copia de un archivo anterior, mantiene App Check/modelos ya configurados y no modifica `.env.local` ni `functions/.env.local`. Si una creación devuelve un resultado incierto, consultar `npx firebase apps:list WEB --project rinconcito-verde-cr` antes de repetir.
 
-Completar en un editor local `VITE_FIREBASE_APPCHECK_SITE_KEY`, `OPENAI_TEXT_MODEL` y `OPENAI_IMAGE_MODEL`. Las claves Firebase y App Check de este archivo son públicas. Los modelos son nombres, nunca claves. `.env.production.example` contiene los campos admitidos; el archivo real y sus respaldos permanecen ignorados por Git. No poner secretos en variables `VITE_*`.
+Completar `OPENAI_TEXT_MODEL` y `OPENAI_IMAGE_MODEL` en un editor local. Para App Check Enterprise, el comando de la siguiente sección obtiene el proveedor y la clave pública del registro existente. Para v3, configurar `VITE_FIREBASE_APPCHECK_PROVIDER=recaptcha-v3` y su `VITE_FIREBASE_APPCHECK_SITE_KEY` correspondiente. Las claves Firebase y App Check de este archivo son públicas. Los modelos son nombres, nunca claves. `.env.production.example` contiene los campos admitidos; el archivo real y sus respaldos permanecen ignorados por Git. No poner secretos en variables `VITE_*`.
 
 ### 3. Servicios y administradores
 
 - **Authentication:** habilitar correo/contraseña y comprobar los dominios autorizados `rinconcito-verde-cr.web.app` y `rinconcito-verde-cr.firebaseapp.com`. Crear las dos cuentas reales confirmadas por el propietario usando contraseñas privadas. Para cada UID, provisionar el custom claim `role: "admin"` y el documento `adminUsers/UID` con `active: true` y `role: "admin"`. Ambas comprobaciones son obligatorias; tener una cuenta Auth por sí solo no concede acceso. La asignación se hace con `prepare:online admins` y la sesión Google autorizada del operador, nunca desde el navegador del comprador. No reutilizar cuentas ni contraseñas del seed local. Volver a iniciar sesión después de cambiar claims.
 - **Firestore y Storage:** crear/verificar `(default)` y el bucket del proyecto. Configurar CORS para descargar imágenes autenticadas desde ambos dominios, conservando cualquier origen anterior necesario. [Descargas y CORS](https://firebase.google.com/docs/storage/web/download-files).
-- **App Check:** registrar reCAPTCHA v3 para esta app y los dominios públicos, guardar la clave pública del sitio en `.env.production.local`. La callable exige App Check; no se desactiva para publicar. [Configuración oficial](https://firebase.google.com/docs/app-check/web/recaptcha-provider).
+- **App Check:** usar el proveedor registrado para esta app y permitir ambos dominios públicos en su clave. Este proyecto usa Enterprise; el cliente utiliza `ReCaptchaEnterpriseProvider` con la misma clave pública registrada en Firebase. Se conserva compatibilidad con v3 mediante la variable de proveedor; si se omite, se mantiene v3 para configuraciones anteriores. Un valor desconocido se rechaza. La callable exige App Check. [Enterprise en la web](https://firebase.google.com/docs/app-check/web/recaptcha-enterprise-provider).
 - **Datos iniciales:** migrar las cuatro fichas y categorías JSON mediante un procedimiento revisado, con respaldo y creación sin sobrescribir registros existentes. Mantener IDs, fotos públicas y URLs QR, especialmente `sansevieria`. Preparar las copias públicas `publicPlants`/`publicCategories` y editables `plants`/`categories`, además de sus reglas de lectura, antes de sustituir el frontend. No inventar stock ni trasladar movimientos ficticios. **No ejecutar `seed:emulators` contra producción.** La migración y roles tienen comandos de preparación separados descritos abajo. La creación inicial de servicios sigue siendo un requisito del primer despliegue.
 
 ### Comprobación compatible de App Check y activación de Firestore
@@ -61,7 +61,35 @@ Completar en un editor local `VITE_FIREBASE_APPCHECK_SITE_KEY`, `OPENAI_TEXT_MOD
 npm run check:appcheck
 ```
 
-Lee el App ID de `.env.production.local`, confirma el número del proyecto mediante gcloud y consulta `recaptchaV3Config.get` con la sesión autorizada de esa misma máquina. Solicita únicamente `name` y `siteSecretSet`; el token temporal se mantiene en memoria, no se imprime ni se escribe en archivos, y se rechazan redirecciones. No pide pegar credenciales en el chat ni depende de comandos nuevos de Firebase CLI. Confirma el registro del proveedor, **no** el intercambio real de tokens desde el navegador ni la correspondencia de la clave pública del sitio. [API oficial de App Check](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaV3Config/get).
+La app está registrada con **Enterprise**. Para sincronizar una vez los dos valores públicos desde ese registro, sin copiarlos al chat:
+
+```bash
+npm run check:appcheck -- --configure-enterprise
+npm run check:appcheck
+```
+
+El primer comando consulta únicamente `name` y `siteKey` de `recaptchaEnterpriseConfig.get` para el App ID y número de proyecto confirmados. Guarda `VITE_FIREBASE_APPCHECK_PROVIDER=recaptcha-enterprise` y la clave pública en `.env.production.local`, conservando modelos, valores Firebase y un respaldo privado del archivo anterior. No modifica el registro remoto, `.env.local` ni los emuladores. Si ya coincide, no reescribe ni crea otro respaldo. Los archivos y respaldos están ignorados por Git.
+
+La comprobación normal y el preflight del despliegue seleccionan el recurso correspondiente al proveedor. Enterprise exige que la clave pública local coincida con Firebase; v3 verifica `siteSecretSet` y no puede comparar su clave pública mediante esta API. El token temporal de gcloud se mantiene en memoria, no se imprime ni escribe, y se rechazan redirecciones. El intercambio real de tokens y los dominios se verifican después desde el navegador online. [Recurso Enterprise](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaEnterpriseConfig) y [consulta v3](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaV3Config/get).
+
+### CORS para las fotografías privadas
+
+El admin descarga blobs autenticados para previsualizar y componer fotografías. Consultar la configuración antes de actualizarla:
+
+```bash
+gcloud storage buckets describe gs://rinconcito-verde-cr.firebasestorage.app --project=rinconcito-verde-cr --raw --format='json(cors)'
+```
+
+El propietario confirmó `null`. Para este estado, aplicar el archivo versionado:
+
+```bash
+gcloud storage buckets update gs://rinconcito-verde-cr.firebasestorage.app --project=rinconcito-verde-cr --cors-file=storage.cors.json
+gcloud storage buckets describe gs://rinconcito-verde-cr.firebasestorage.app --project=rinconcito-verde-cr --raw --format='json(cors)'
+```
+
+`storage.cors.json` permite GET desde los dos dominios Hosting, sin comodines. No cambia IAM, reglas ni la privacidad de los objetos. En futuras instalaciones con reglas CORS existentes, combinar las entradas necesarias antes de actualizar: `--cors-file` sustituye esa configuración completa. El preflight bloquea el despliegue si alguno de los dos dominios carece de GET. [CORS en Storage](https://cloud.google.com/storage/docs/using-cors).
+
+### APIs y base de datos iniciales
 
 Si una API todavía está deshabilitada, activar solamente los servicios del proyecto confirmado:
 
@@ -83,6 +111,14 @@ gcloud firestore databases create --database='(default)' --location=us-central1 
 ```
 
 Si ya existe, conservar su ubicación y datos; no eliminarla ni recrearla. La base nueva todavía necesita reglas, datos iniciales y administradores antes del despliegue completo.
+
+Antes del primer preflight completo, habilitar las APIs del backend autorizado (el listado de Functions también las necesita):
+
+```bash
+gcloud services enable cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com eventarc.googleapis.com pubsub.googleapis.com --project=rinconcito-verde-cr
+```
+
+Si una consulta inmediata devuelve API deshabilitada, esperar su propagación y verificar el estado; no repetir activaciones en un bucle.
 
 ### Preparar datos y roles con la sesión autorizada de la Mac
 
@@ -189,10 +225,10 @@ Antes de publicar, un fallo detiene el proceso. Durante el despliegue pueden que
 
 El frontend puede revertirse a una release Hosting verificada. Functions/reglas requieren revisión independiente; revertir Hosting no revierte datos ni permisos. No resetear el checkout del usuario ni restaurar inventario desde JSON.
 
-Validación de esta entrega: `npm run check` aprobado con **165 pruebas en 19 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene el aviso de tamaño del chunk administrativo.
+Validación de esta entrega: `npm run check` aprobado con **181 pruebas en 20 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene el aviso de tamaño del chunk administrativo.
 
 La preparación añade pruebas de migración completa, fotos adicionales, conservación de registros existentes, pares incompletos, concurrencia, acceso en ambos sistemas, cuentas ausentes/deshabilitadas, claims existentes y fallos parciales. `npm run prepare:online -- --help` también se ejecutó sin acceso a servicios.
 
-La comprobación App Check añade pruebas de pertenencia al proyecto, metadatos del proveedor, fallos HTTP/red, protección del token y ausencia de redirecciones.
+La comprobación App Check cubre v3 y Enterprise, coincidencia de la clave pública, pertenencia a la app/proyecto, fallos HTTP/red y protección del token. Las pruebas del cliente verifican el proveedor inicializado antes de Auth y la ausencia de App Check en emuladores. Se comprueba también el respaldo/conservación de configuración y el bloqueo por CORS ausente.
 
 Las pruebas unitarias de configuración/despliegue cubren registro o reutilización de app, respaldo de configuración, exclusión de secretos, modelos explícitos, Spark, secreto deshabilitado, conflictos de funciones, orden de publicación, fallos parciales, catálogo faltante y comparación HTTPS. Se complementan con pruebas de admin/rutas/galería/QR. La ejecución real permanece bloqueada por la preparación y sesión productivas pendientes.
