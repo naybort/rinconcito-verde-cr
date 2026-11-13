@@ -11,7 +11,7 @@ function runtime(status = 200, data: unknown = { name, siteSecretSet: true }) {
 it('consulta solo metadatos de la app exacta con la sesión gcloud y sin redirecciones', async () => {
  const context = runtime();
  expect(await checkAppCheck(context)).toEqual({ appId, provider: 'recaptcha-v3', configured: true });
- expect(context.fetcher).toHaveBeenCalledWith('https://firebaseappcheck.googleapis.com/v1/projects/123456/apps/1%3A123456%3Aweb%3Aabc123/recaptchaV3Config?fields=name,siteSecretSet', expect.objectContaining({ method: 'GET', headers: { Authorization: 'Bearer ' + token }, redirect: 'error', cache: 'no-store' }));
+ expect(context.fetcher).toHaveBeenCalledWith('https://firebaseappcheck.googleapis.com/v1/projects/123456/apps/1%3A123456%3Aweb%3Aabc123/recaptchaV3Config?fields=name,siteSecretSet', expect.objectContaining({ method: 'GET', headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': 'rinconcito-verde-cr' }, redirect: 'error', cache: 'no-store' }));
 });
 it.each([404, 403, 429, 500])('un HTTP %s bloquea la comprobación sin revelar el token ni la respuesta cruda', async status => {
  const context = runtime(status, { error: { message: token } });
@@ -34,4 +34,9 @@ it('oculta detalles de errores de red que podrían contener credenciales', async
 it('rechaza una sesión vacía sin enviar la petición', async () => {
  const context = runtime(); context.getAccessToken.mockReturnValue('');
  await expect(checkAppCheck(context)).rejects.toThrow('sesión'); expect(context.fetcher).not.toHaveBeenCalled();
+});
+
+it('distingue un motivo conocido de HTTP 403 sin mostrar el cuerpo crudo', async () => {
+ const context = runtime(403, { error: { message: token, details: [{ reason: 'SERVICE_DISABLED' }] } });
+ await expect(checkAppCheck(context)).rejects.toThrow('SERVICE_DISABLED');
 });

@@ -22,7 +22,8 @@
     "configure:online": "node scripts/configure-online.ts",
     "verify:online": "node scripts/verify-online.ts",
     "release:online": "npm run deploy:online && npm run verify:online",
-    "check:appcheck": "node scripts/check-appcheck.ts"
+    "check:appcheck": "node scripts/check-appcheck.ts",
+    "prepare:online": "node scripts/prepare-online.ts"
   },
   "keywords": [],
   "type": "module",

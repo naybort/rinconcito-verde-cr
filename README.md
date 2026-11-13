@@ -30,7 +30,7 @@ Ver `docs/VALIDATION.md`. Pendientes: datos/fotos reales, Safari y verificación
 
 ## Desplegar catálogo, administrador e IA
 
-Preparación inicial, requisitos y revisión en línea: [docs/DEPLOY-ONLINE.md](docs/DEPLOY-ONLINE.md).
+Preparación inicial, comandos `prepare:online` para catálogo/roles, requisitos y revisión en línea: [docs/DEPLOY-ONLINE.md](docs/DEPLOY-ONLINE.md).
 
 ```bash
 npm run configure:online

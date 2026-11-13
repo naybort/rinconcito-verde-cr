@@ -13,11 +13,15 @@ export async function checkAppCheck({ appId, projectNumber, getAccessToken, fetc
  let response: Response;
  try {
   response = await fetcher(`https://firebaseappcheck.googleapis.com/v1/projects/${projectNumber}/apps/${encodeURIComponent(appId)}/recaptchaV3Config?fields=name,siteSecretSet`, {
-   method: 'GET', headers: { Authorization: 'Bearer ' + token }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
+   method: 'GET', headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': project }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
   });
  } catch { throw new Error('No se pudo consultar App Check. Revisar conexión y sesión gcloud; no se publicó nada.'); }
  if (response.status === 404) throw new Error('App Check reCAPTCHA v3 no está configurado para esta app. Registrar la app en Firebase Console > App Check.');
- if (response.status === 403) throw new Error('App Check devolvió HTTP 403. Comprobar firebaseappcheck.googleapis.com habilitada y permisos de la sesión gcloud.');
+ if (response.status === 403) {
+  const data = await response.json().catch(() => ({})) as { error?: { details?: { reason?: string }[] } };
+  const reason = data.error?.details?.map(detail => detail.reason).find(value => ['SERVICE_DISABLED', 'USER_PROJECT_DENIED', 'IAM_PERMISSION_DENIED', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT'].includes(value ?? ''));
+  throw new Error('App Check devolvió HTTP 403' + (reason ? ' (' + reason + ')' : '') + '. Comprobar la API, firebaseappcheck.recaptchaV3Config.get y serviceusage.services.use en el proyecto confirmado.');
+ }
  if (!response.ok) throw new Error(`App Check devolvió HTTP ${response.status}. No se continúa con el despliegue.`);
  const config = await response.json() as { name?: string; siteSecretSet?: boolean };
  if (config.name !== name || config.siteSecretSet !== true) throw new Error('Falta completar el registro reCAPTCHA v3 de esta app en Firebase Console > App Check.');

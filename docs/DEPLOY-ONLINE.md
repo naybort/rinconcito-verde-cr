@@ -14,9 +14,11 @@ Incluye QR con marca, fotografía con identidad, detalle ampliado, paginación y
 
 El propietario autorizó el despliegue completo, las pruebas reales de IA y la vinculación de facturación. Después del error inicial `429`, confirmó `billingEnabled: True` desde su Mac. También ejecutó el pull y `configure:online`: la app web quedó registrada y `.env.production.local` guardado. No se repiten estos pasos ni se crean apps adicionales.
 
-**La publicación y las pruebas reales siguen pendientes.** La Mac confirmó `firestore.googleapis.com` y `firebaseappcheck.googleapis.com` habilitadas. Tras la propagación, `gcloud firestore databases list` terminó sin bases; falta crear `(default)` en la región de Functions, `us-central1`. Storage, registro App Check, secreto/modelos OpenAI, usuarios/roles y migración de datos no están confirmados. No hay un presupuesto mensual configurado ni se supone un límite monetario autorizado concreto.
+**La publicación y las pruebas reales siguen pendientes.** El propietario confirmó en su Mac: APIs Firestore/App Check habilitadas; base `(default)` creada en `us-central1`, edición Standard y modo Native; bucket `rinconcito-verde-cr.firebasestorage.app` creado; dos cuentas administrativas creadas en Authentication; versión 1 de `OPENAI_API_KEY` creada en Secret Manager. También reportó completados el registro reCAPTCHA v3 y los modelos/clave pública de App Check en `.env.production.local`.
 
-La copia cloud continúa sin sesión Firebase/gcloud y sin acceso a la Mac. Los cambios de producción anteriores los ejecutó el propietario en su terminal. La configuración de los emuladores se conserva. El CLI instalado en la Mac no reconoce `appcheck:apps:list`; el despliegue ahora consulta la API REST oficial de App Check y ofrece `npm run check:appcheck`.
+Falta verificar el registro App Check con la consulta corregida, asignar los dos mecanismos de acceso admin, migrar las fichas/categorías, comprobar CORS y publicar reglas/backend/Hosting. No hay un presupuesto mensual configurado ni se supone un límite monetario concreto.
+
+La copia cloud continúa sin sesión Firebase/gcloud y sin acceso a la Mac. Los cambios de producción anteriores los ejecutó el propietario en su terminal. La configuración de los emuladores se conserva. El CLI de la Mac no reconoce `appcheck:apps:list`; ahora se usa la API REST oficial y `npm run check:appcheck`. Las peticiones REST incluyen `X-Goog-User-Project: rinconcito-verde-cr` para evitar usar el proyecto compartido del cliente OAuth de gcloud como proyecto de cuota. [Comportamiento documentado de gcloud](https://cloud.google.com/sdk/gcloud/reference/auth/print-access-token).
 
 ## Preparación inicial
 
@@ -48,10 +50,10 @@ Completar en un editor local `VITE_FIREBASE_APPCHECK_SITE_KEY`, `OPENAI_TEXT_MOD
 
 ### 3. Servicios y administradores
 
-- **Authentication:** habilitar correo/contraseña y comprobar los dominios autorizados `rinconcito-verde-cr.web.app` y `rinconcito-verde-cr.firebaseapp.com`. Crear las dos cuentas reales confirmadas por el propietario usando contraseñas privadas. Para cada UID, provisionar el custom claim `role: "admin"` y el documento `adminUsers/UID` con `active: true` y `role: "admin"`. Ambas comprobaciones son obligatorias; tener una cuenta Auth por sí solo no concede acceso. La asignación se hace con un operador/Admin SDK autorizado, nunca desde el cliente. No reutilizar cuentas ni contraseñas del seed local. Volver a iniciar sesión después de cambiar claims.
+- **Authentication:** habilitar correo/contraseña y comprobar los dominios autorizados `rinconcito-verde-cr.web.app` y `rinconcito-verde-cr.firebaseapp.com`. Crear las dos cuentas reales confirmadas por el propietario usando contraseñas privadas. Para cada UID, provisionar el custom claim `role: "admin"` y el documento `adminUsers/UID` con `active: true` y `role: "admin"`. Ambas comprobaciones son obligatorias; tener una cuenta Auth por sí solo no concede acceso. La asignación se hace con `prepare:online admins` y la sesión Google autorizada del operador, nunca desde el navegador del comprador. No reutilizar cuentas ni contraseñas del seed local. Volver a iniciar sesión después de cambiar claims.
 - **Firestore y Storage:** crear/verificar `(default)` y el bucket del proyecto. Configurar CORS para descargar imágenes autenticadas desde ambos dominios, conservando cualquier origen anterior necesario. [Descargas y CORS](https://firebase.google.com/docs/storage/web/download-files).
 - **App Check:** registrar reCAPTCHA v3 para esta app y los dominios públicos, guardar la clave pública del sitio en `.env.production.local`. La callable exige App Check; no se desactiva para publicar. [Configuración oficial](https://firebase.google.com/docs/app-check/web/recaptcha-provider).
-- **Datos iniciales:** migrar las cuatro fichas y categorías JSON mediante un procedimiento revisado, con respaldo y creación sin sobrescribir registros existentes. Mantener IDs, fotos públicas y URLs QR, especialmente `sansevieria`. Preparar las copias públicas `publicPlants`/`publicCategories` y editables `plants`/`categories`, además de sus reglas de lectura, antes de sustituir el frontend. No inventar stock ni trasladar movimientos ficticios. **No ejecutar `seed:emulators` contra producción.** La migración, creación de servicios y asignación de roles no son automáticas en este comando; siguen siendo requisitos del primer despliegue.
+- **Datos iniciales:** migrar las cuatro fichas y categorías JSON mediante un procedimiento revisado, con respaldo y creación sin sobrescribir registros existentes. Mantener IDs, fotos públicas y URLs QR, especialmente `sansevieria`. Preparar las copias públicas `publicPlants`/`publicCategories` y editables `plants`/`categories`, además de sus reglas de lectura, antes de sustituir el frontend. No inventar stock ni trasladar movimientos ficticios. **No ejecutar `seed:emulators` contra producción.** La migración y roles tienen comandos de preparación separados descritos abajo. La creación inicial de servicios sigue siendo un requisito del primer despliegue.
 
 ### Comprobación compatible de App Check y activación de Firestore
 
@@ -81,6 +83,31 @@ gcloud firestore databases create --database='(default)' --location=us-central1 
 ```
 
 Si ya existe, conservar su ubicación y datos; no eliminarla ni recrearla. La base nueva todavía necesita reglas, datos iniciales y administradores antes del despliegue completo.
+
+### Preparar datos y roles con la sesión autorizada de la Mac
+
+`prepare:online` utiliza APIs oficiales de Firestore e Identity Platform con el token temporal de la sesión gcloud, sin leer archivos de credenciales ni imprimir/escribir el token. El destino está fijado a este proyecto. No consulta ni copia emuladores, no modifica contraseñas, no crea usuarios y no envía mensajes.
+
+Consultar los planes sin escribir en Google Cloud:
+
+```bash
+npm run prepare:online -- catalog
+npm run prepare:online -- admins --email='CORREO_AUTORIZADO_1' --email='CORREO_AUTORIZADO_2'
+```
+
+Sustituir los dos marcadores por los correos confirmados por el propietario. Para aplicar la preparación ya autorizada:
+
+```bash
+npm run prepare:online -- catalog --apply
+npm run prepare:online -- admins --email='CORREO_AUTORIZADO_1' --email='CORREO_AUTORIZADO_2' --apply
+npx firebase deploy --only firestore:rules --project rinconcito-verde-cr
+```
+
+La migración crea las cuatro fichas y tres categorías en sus colecciones privadas/públicas: catorce documentos en un único commit Firestore, todos con precondición `exists: false`. Conserva IDs, cuidados, fotos, galería y enlaces QR. Si un par privado/público ya existe, lo preserva; si solo existe una mitad, se detiene en vez de reconstruirla con datos antiguos. No crea existencias ni movimientos. Las imágenes se conservan en Hosting; no convierte originales locales en archivos de Storage. La publicación inicial de las reglas permite después comprobar el catálogo por lectura pública antes de sustituir Hosting.
+
+La preparación de administradores exige que todas las cuentas existan, estén habilitadas y coincidan exactamente con los correos indicados. Conserva otros custom claims, añade `role: admin` y crea/actualiza únicamente `role`/`active` en `adminUsers/UID`, con precondición de versión. No reactiva automáticamente una cuenta ni un acceso revocados. Vuelve a leer claims/documento para confirmar el resultado. Cerrar y volver a iniciar sesión después de asignar el rol. [API de consulta administrativa](https://cloud.google.com/identity-platform/docs/reference/rest/v1/projects.accounts/lookup) y [API de actualización](https://cloud.google.com/identity-platform/docs/reference/rest/v1/projects.accounts/update).
+
+Los planes, respaldos de claims/listas de acceso e informes quedan en `.firebase/setup-online/<fecha-uuid>/result.json`, ignorados por Git y con permisos privados. No compartir el contenido del informe administrativo: contiene identificadores y permisos previos. Auth y Firestore no forman una transacción conjunta; si una etapa falla, se registra `incomplete`, se detiene la secuencia y se revisa qué quedó aplicado antes de reintentar. No hacer cambios simultáneos de claims con otro operador durante esta preparación.
 
 ### 4. OpenAI en Secret Manager
 
@@ -162,7 +189,9 @@ Antes de publicar, un fallo detiene el proceso. Durante el despliegue pueden que
 
 El frontend puede revertirse a una release Hosting verificada. Functions/reglas requieren revisión independiente; revertir Hosting no revierte datos ni permisos. No resetear el checkout del usuario ni restaurar inventario desde JSON.
 
-Validación de esta entrega: `npm run check` aprobado con **154 pruebas en 18 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene el aviso de tamaño del chunk administrativo.
+Validación de esta entrega: `npm run check` aprobado con **165 pruebas en 19 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene el aviso de tamaño del chunk administrativo.
+
+La preparación añade pruebas de migración completa, fotos adicionales, conservación de registros existentes, pares incompletos, concurrencia, acceso en ambos sistemas, cuentas ausentes/deshabilitadas, claims existentes y fallos parciales. `npm run prepare:online -- --help` también se ejecutó sin acceso a servicios.
 
 La comprobación App Check añade pruebas de pertenencia al proyecto, metadatos del proveedor, fallos HTTP/red, protección del token y ausencia de redirecciones.
 
