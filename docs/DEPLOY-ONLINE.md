@@ -1,84 +1,136 @@
-# Despliegue del catálogo y administrador online
+# Despliegue completo: catálogo, administración e IA
 
-El comando de esta entrega publica en el proyecto existente **rinconcito-verde-cr**:
+Destino fijo: https://rinconcito-verde-cr.web.app y https://rinconcito-verde-cr.web.app/admin, proyecto `rinconcito-verde-cr`, Functions de segunda generación en `us-central1`.
+
+Tras completar la preparación inicial, el comando que despliega y abre la prueba real es:
 
 ```bash
-npm run deploy:online
+npm run release:online
 ```
 
-Destino: https://rinconcito-verde-cr.web.app y https://rinconcito-verde-cr.web.app/admin.
-El comando requiere que la preparación inicial descrita abajo esté terminada. Una compilación correcta no significa que el despliegue haya ocurrido.
+Incluye QR con marca, fotografía con identidad, detalle ampliado, paginación y miniaturas, ruta `/admin`, acceso desde el catálogo para administradores conectados, backend e IA real. Una compilación correcta no significa que el sitio ya esté publicado.
 
-## Estado de esta entrega
+## Estado de la preparación — 13 de noviembre de 2026
 
-Preparación realizada el 13 de noviembre de 2026. Incluye etiqueta QR con marca, fotografías con identidad, detalle ampliado, paginación y miniaturas del admin, ruta `/admin` compatible con los marcadores antiguos y acceso «Administrar» en el encabezado para sesiones autorizadas.
+El propietario solicitó el despliegue completo y pruebas reales de IA. Confirmó por terminal que no había apps web registradas y que `billingEnabled` era `False`; después autorizó vincular una cuenta de facturación concreta. **El intento de vinculación devolvió `429 RATE_LIMIT_EXCEEDED` de Cloud Billing y la consulta posterior siguió en `False`; todavía no quedó habilitada.** Los identificadores privados de facturación y correos administrativos no se guardan en este repositorio.
 
-**La publicación de esta entrega está pendiente.** La copia cloud no tiene cuentas Firebase autorizadas (`firebase login:list`: `No authorized accounts`), no tiene gcloud disponible ni configuración pública completa de la app cloud. No se obtuvieron credenciales de la Mac. El último registro de facturación era Spark; el estado actual no se pudo consultar. La configuración pública del Hosting existente no devolvió `appId`. No se activaron facturación, IA ni usuarios productivos.
+**La publicación y las pruebas reales siguen pendientes.** La copia cloud no tiene sesión Firebase autorizada, gcloud ni configuración productiva completa, y no accede a la Mac. No se habilitó facturación desde esta copia ni se crearon usuarios productivos. Los scripts se validaron con mocks; ninguna prueba unitaria llama a OpenAI. Se conserva la configuración de los emuladores.
 
 ## Preparación inicial
 
-1. Usar el proyecto **rinconcito-verde-cr**, sin cambiar los defaults de otros proyectos. Functions necesita Blaze ya habilitado con una cuenta de facturación autorizada. El script solo consulta su estado: no vincula cuentas ni cambia el plan. [Requisito oficial de Functions](https://firebase.google.com/docs/functions/get-started).
-2. Tener Node compatible (22.22.2+ o 24.15+), dependencias de raíz y Functions, y Google Cloud CLI. Para un checkout nuevo: `npm ci` y `npm --prefix functions ci`. El despliegue usa Firebase CLI instalado por el lockfile del repositorio, sin instalaciones globales automáticas.
-3. Iniciar sesión en la máquina que publicará mediante `npx firebase login` y `gcloud auth login`, con una cuenta que tenga permisos para este proyecto. No compartir tokens ni archivos de credenciales en el chat o Git. El script no inicia sesiones ni modifica la configuración activa de gcloud.
-4. Registrar/verificar una app **Web** en Firebase Console, Authentication con correo/contraseña, y los dominios autorizados `rinconcito-verde-cr.web.app` y `rinconcito-verde-cr.firebaseapp.com`. Las dos personas confirmadas por el propietario deben tener cuentas reales: para cada UID, claim `role: "admin"` y documento `adminUsers/UID` con `active: true` y `role: "admin"`, provisionados por un operador autorizado. No reutilizar las cuentas ni contraseñas del seed local. Este comando no crea usuarios ni envía correos.
-5. Crear/verificar Firestore `(default)` y el bucket correspondiente al proyecto. La región de Functions permanece `us-central1`. Revisar CORS para lectura autenticada de imágenes desde ambos dominios, conservando cualquier origen existente que siga siendo necesario. [Descargas y CORS](https://firebase.google.com/docs/storage/web/download-files).
-6. Registrar **App Check reCAPTCHA v3** para la app web y sus dominios. El cliente usa la clave pública del sitio; la callable exige App Check en producción. No se desactiva esa protección para publicar. [Configuración oficial](https://firebase.google.com/docs/app-check/web/recaptcha-provider).
-7. Migrar las fichas y categorías existentes con un procedimiento revisado, respaldo y creación sin sobrescribir registros existentes. Conservar todos sus IDs (especialmente `sansevieria`), fotos públicas y URLs QR. Las colecciones `publicPlants` y `publicCategories` deben contener las fichas/categorías del catálogo JSON antes de sustituir el frontend estático. Las fichas editables correspondientes deben existir en `plants`/`categories`; no inventar inventario ni copiar movimientos de prueba. **No ejecutar `seed:emulators` contra producción.** La migración inicial no forma parte del comando de despliegue.
+### 1. Herramientas, sesión y facturación
 
-Copiar la plantilla sin sobrescribir archivos existentes:
+Usar Node compatible (22.22.2+ o 24.15+), Google Cloud CLI y las dependencias fijadas en los lockfiles:
 
 ```bash
-cp -n .env.production.example .env.production.local
+npm ci
+npm --prefix functions ci
+npx firebase login
+gcloud auth login
+gcloud billing projects describe rinconcito-verde-cr --format='value(billingEnabled)'
 ```
 
-Completar en `.env.production.local` la API key **pública de Firebase**, App ID y clave **pública** App Check obtenidas de la app real. Verificar bucket y dominio. `VITE_FIREBASE_MODE` debe ser `cloud`; el script rechaza `emulator`, otro proyecto o campos incompletos. Nunca poner secretos OpenAI ni JSON de una service account en variables `VITE_*`. El archivo real permanece ignorado por Git. No tocar `.env.local` ni la configuración de los emuladores.
+Las sesiones deben tener permisos sobre este proyecto. Functions requiere Blaze. Si la consulta devuelve `False`, un operador debe vincular únicamente la cuenta autorizada con `gcloud billing projects link`; la cuenta concreta se mantiene fuera de Git. El script de despliegue solo verifica el estado, nunca cambia la cuenta vinculada. [Requisito de Functions](https://firebase.google.com/docs/functions/get-started) y [comando de vinculación](https://cloud.google.com/sdk/gcloud/reference/billing/projects/link).
 
-## Comando de comprobación y publicación
+Si Cloud Billing responde `429 RATE_LIMIT_EXCEEDED`, no repetir el comando en un bucle. El límite indicado es de solicitudes por minuto. Se puede completar la vinculación autorizada desde Firebase Console → actualizar plan → Blaze y verificar después `billingEnabled`. Si también falla la consola, esperar a que se restablezca la cuota y revisar el servicio; no es un error de la clave OpenAI. [Cambiar al plan Blaze](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans).
 
-Desde el checkout actualizado en la Mac:
+### 2. Registrar la app y guardar su configuración pública
+
+```bash
+npm run configure:online
+```
+
+Consulta las apps web del proyecto; si no hay ninguna, registra `Rinconcito Verde Web`. Reutiliza una app existente; si hay varias, se detiene para evitar elegir otra por error. Obtiene del CLI los valores públicos reales y escribe `.env.production.local`. Conserva una copia de un archivo anterior, mantiene App Check/modelos ya configurados y no modifica `.env.local` ni `functions/.env.local`. Si una creación devuelve un resultado incierto, consultar `npx firebase apps:list WEB --project rinconcito-verde-cr` antes de repetir.
+
+Completar en un editor local `VITE_FIREBASE_APPCHECK_SITE_KEY`, `OPENAI_TEXT_MODEL` y `OPENAI_IMAGE_MODEL`. Las claves Firebase y App Check de este archivo son públicas. Los modelos son nombres, nunca claves. `.env.production.example` contiene los campos admitidos; el archivo real y sus respaldos permanecen ignorados por Git. No poner secretos en variables `VITE_*`.
+
+### 3. Servicios y administradores
+
+- **Authentication:** habilitar correo/contraseña y comprobar los dominios autorizados `rinconcito-verde-cr.web.app` y `rinconcito-verde-cr.firebaseapp.com`. Crear las dos cuentas reales confirmadas por el propietario usando contraseñas privadas. Para cada UID, provisionar el custom claim `role: "admin"` y el documento `adminUsers/UID` con `active: true` y `role: "admin"`. Ambas comprobaciones son obligatorias; tener una cuenta Auth por sí solo no concede acceso. La asignación se hace con un operador/Admin SDK autorizado, nunca desde el cliente. No reutilizar cuentas ni contraseñas del seed local. Volver a iniciar sesión después de cambiar claims.
+- **Firestore y Storage:** crear/verificar `(default)` y el bucket del proyecto. Configurar CORS para descargar imágenes autenticadas desde ambos dominios, conservando cualquier origen anterior necesario. [Descargas y CORS](https://firebase.google.com/docs/storage/web/download-files).
+- **App Check:** registrar reCAPTCHA v3 para esta app y los dominios públicos, guardar la clave pública del sitio en `.env.production.local`. La callable exige App Check; no se desactiva para publicar. [Configuración oficial](https://firebase.google.com/docs/app-check/web/recaptcha-provider).
+- **Datos iniciales:** migrar las cuatro fichas y categorías JSON mediante un procedimiento revisado, con respaldo y creación sin sobrescribir registros existentes. Mantener IDs, fotos públicas y URLs QR, especialmente `sansevieria`. Preparar las copias públicas `publicPlants`/`publicCategories` y editables `plants`/`categories`, además de sus reglas de lectura, antes de sustituir el frontend. No inventar stock ni trasladar movimientos ficticios. **No ejecutar `seed:emulators` contra producción.** La migración, creación de servicios y asignación de roles no son automáticas en este comando; siguen siendo requisitos del primer despliegue.
+
+### 4. OpenAI en Secret Manager
+
+La facturación de OpenAI es independiente de Blaze. La cuenta API debe disponer de saldo y acceso a los modelos elegidos. Configurar el secreto desde el prompt interactivo del CLI, sin escribir la clave en el comando, chat, captura o Git:
+
+```bash
+npx firebase functions:secrets:set OPENAI_API_KEY --project rinconcito-verde-cr
+```
+
+La prueba completa exige dos modelos explícitos: texto con imágenes, Responses, formato estructurado y búsqueda web; imagen compatible con Images Edits. Los IDs documentados para este proyecto son `gpt-6.1-terra` y `gpt-image-2.6-sunburst`. Confirmar acceso en la cuenta antes de usarlos; el script no selecciona modelos automáticamente. [Modelo de texto](https://developers.openai.com/api/docs/models/gpt-6.1-terra), [modelo de imagen](https://developers.openai.com/api/docs/models/gpt-image-2.6-sunburst) y [secretos de Functions](https://firebase.google.com/docs/functions/config-env#secret_parameters).
+
+El despliegue comprueba únicamente que la versión `latest` del secreto está habilitada; no lee ni imprime su contenido. `processAI` recibe la referencia a Secret Manager. No se copia la clave local de emuladores a producción.
+
+## Actualizar, comprobar y desplegar
+
+Desde el checkout de la Mac:
 
 ```bash
 cd /Users/bryanortiz/Documents/GitHub/rinconcito-verde-v1
+git status --short
 git pull --ff-only origin main
 npm run deploy:online -- --check
-npm run deploy:online
+npm run release:online
 ```
 
-Si existen cambios locales, preservarlos y resolver cualquier conflicto antes del pull; no usar reset ni forzar. `--check` hace las mismas consultas y compilaciones, sin publicar. La invocación normal vuelve a comprobar todo para publicar exactamente el build validado.
+Si el pull informa cambios locales, conservarlos primero con un commit o `git stash push --include-untracked`, revisar el respaldo y luego hacer el pull. No forzar ni resetear. Si el stash contiene parches que ya están en remoto, no aplicarlo de nuevo automáticamente; conservarlo hasta revisar los cambios exclusivos.
 
-El flujo automático:
+`--check` consulta requisitos y ejecuta las compilaciones, sin publicar ni generar IA. `release:online` vuelve a validar, despliega y abre Chrome para la prueba real. Para separar ambas fases:
 
-1. Valida la configuración pública; comprueba acceso Firebase, Blaze existente, correspondencia de la app web, base de datos, bucket y proveedor App Check.
-2. Ejecuta `npm run check` (lint, tipos frontend/backend, pruebas unitarias, catálogo y build), y compila Functions.
-3. Comprueba mediante lecturas públicas que las fichas y categorías existentes ya están disponibles en Firestore. Se detiene ante errores o datos faltantes.
-4. Prepara Functions en un directorio temporal propio, con código compilado, dependencias y `AI_ENABLED=false`. No copia `.env.local`, claves ni secretos del backend. Publica únicamente reglas/índices Firestore, reglas Storage y `functions:catalog:adminCommand`.
-5. Si ese paso termina correctamente, publica Hosting. Mantiene la reescritura SPA para `/admin` y los enlaces QR por hash.
-6. Compara el HTML servido por HTTPS en `/` y `/admin` con el build exacto y guarda `.firebase/deploy-online-result.json`, con commit, estado del checkout, etapas completadas y URL. Elimina solo su directorio temporal.
+```bash
+npm run deploy:online
+npm run verify:online
+```
 
-No instala dependencias, activa billing, arranca/para emuladores, migra datos, cambia roles ni envía mensajes. El flujo de IA real permanece fuera de esta publicación: no despliega ni elimina `processAI`, no crea secretos y `adminCommand` rechaza nuevos trabajos de IA. Una activación posterior requiere configuración y autorización separadas. La CLI puede habilitar APIs necesarias para los recursos desplegados dentro del proyecto con Blaze ya autorizado.
+El despliegue automático:
 
-El comando antiguo `npm run deploy -- --project rinconcito-verde-cr` sigue siendo **solo Hosting**. No sirve para publicar toda la administración. No publicar builds preparados en modo emulador con comandos manuales.
+1. Valida configuración cloud, proyecto, sesión, Blaze, app web, base de datos, bucket, App Check, modelos y metadatos del secreto.
+2. Verifica que `adminCommand` y `processAI`, si existen, pertenecen a la región/generación/codebase esperadas. Detiene una migración implícita.
+3. Ejecuta lint, tipos, pruebas, catálogo, frontend y compilación de Functions. Confirma por lectura pública que las fichas y categorías originales ya existen en Firestore.
+4. Prepara una fuente temporal de Functions con código compilado y `AI_ENABLED=true`, `AI_EMULATOR_OPENAI=false` y los modelos explícitos. Excluye los archivos locales de configuración y secretos.
+5. Publica reglas/índices, luego `processAI`, después `adminCommand` y finalmente Hosting. El procesador queda disponible antes de aceptar nuevas solicitudes IA. Firebase necesita `--force` para habilitar sin interacción la política de reintentos existente del worker; se limita exclusivamente a `functions:catalog:processAI`, con región/generación/codebase ya comprobadas. Las demás publicaciones no usan `--force`.
+6. Compara el HTML servido en `/` y `/admin` con el build exacto. Guarda `.firebase/deploy-online-result.json` con commit, estado del checkout y etapas completadas; elimina únicamente su carpeta temporal.
 
-## Revisión en línea
+El comando no inicia/detiene emuladores, asigna roles, envía mensajes ni migra datos. La CLI puede habilitar las APIs requeridas dentro del proyecto autorizado. El comando antiguo `npm run deploy -- --project rinconcito-verde-cr` publica solo Hosting y no sirve para esta entrega completa.
 
-Después del mensaje de éxito, probar con un navegador y las cuentas reales:
+## Prueba real y evidencia
 
-- Catálogo anónimo, búsqueda, favoritos, Sansevieria, detalle/fotos, QR, WhatsApp y crédito Vision Mind.
-- `/admin` directo y al recargar; marcadores anteriores `/#/admin` y `/#admin`.
-- Inicio de sesión de ambos administradores; volver al catálogo y ver «Administrar»; cerrar sesión y comprobar que desaparece.
-- Miniaturas, búsqueda, paginación, selección entre páginas, descarga QR y fotografía, impresión y edición con datos de revisión identificables. No realizar movimientos de inventario real solo para comprobar la UI.
-- Móvil y escritorio. El smoke automático verifica la versión del HTML, **no** sustituye esta comprobación autenticada ni una impresión física.
+`verify:online` abre Chrome en una sesión aislada. Iniciar sesión manualmente en la ventana con una cuenta administradora; la contraseña se escribe solo en el sitio. El script no guarda perfiles, cookies ni tokens. Se puede indicar un Chrome instalado mediante `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
 
-## Fallos y reversión
+La ejecución completa:
 
-Ante un fallo previo no se inicia la publicación. Un fallo durante `firebase deploy` puede dejar recursos parcialmente actualizados; no hay una transacción global entre reglas, Functions y Hosting. Revisar la salida y el informe antes de repetir. Si falla el backend, Hosting no se publica. Si falla HTTPS después de Hosting, el informe indica `incomplete` aunque la publicación pueda haber terminado.
+- Comprueba catálogo anónimo, Sansevieria, favoritos, detalle y tamaños móvil/escritorio.
+- Comprueba login/rol, crea un borrador privado `QA online Sansevieria <fecha>` y sube la fotografía existente del repositorio.
+- Envía **una solicitud real por tipo**: identificación, contenido con fuentes y mejora de fotografía. Espera las tres propuestas, comprueba cuidados/fuentes y que el texto del borrador no haya sido reemplazado.
+- Compara el SHA-256 de la fotografía original descargada con el archivo inicial. Deja las propuestas sin aceptar y el borrador sin publicar; no realiza movimientos de inventario.
+- Comprueba el botón «Administrar» en el catálogo, su desaparición al salir y el ancho móvil. Guarda `result.json`, IDs de trabajos y capturas en `.firebase/online-qa/<fecha>/` (ignorado por Git).
 
-Para revertir el frontend, usar una release previa verificada desde Firebase Hosting o un checkout separado del commit anterior. No resetear el checkout del usuario ni restaurar inventario desde JSON. Las reglas y Functions requieren una revisión/reversión independiente; el rollback de Hosting no revierte datos ni permisos.
+La prueba hace tres solicitudes de trabajo; los reintentos acotados del backend ante fallos temporales pueden implicar más llamadas al proveedor. Producción conserva los límites de cinco trabajos por usuario/día UTC y treinta por proyecto/día UTC. Repetir la prueba completa crea otro borrador y consume cuota. Si hay un fallo, revisar los trabajos ya aceptados antes de repetir; no se reenvía automáticamente la secuencia.
 
-## Evidencia de pruebas
+Para comprobar la segunda cuenta sin nuevos trabajos IA:
 
-Resultado de esta preparación: `npm run check` aprobado (134 pruebas en 16 archivos, lint, tipos y build), compilación separada del backend y compilación de la variante cloud del frontend aprobadas. `npm run deploy:online -- --check` se detuvo antes de publicar porque esta copia no tiene configuración productiva.
+```bash
+npm run verify:online -- --access-only
+```
 
-Las pruebas `tests/deployment.test.ts` usan CLI, red y archivos ficticios. Cubren orden de publicación, fallos de autenticación/build/backend, Spark, falta de fichas públicas, verificación HTTPS, configuración incorrecta, exclusión de secretos locales y modo `--check`. Se complementan con las pruebas de `/admin`, botón por sesión, paginación, galería y QR. No se ejecutaron llamadas reales a IA ni pruebas que reinicien emuladores.
+Para consultar instrucciones sin abrir Chrome ni generar contenido:
 
-Referencia de la consulta de facturación utilizada: [gcloud billing projects describe](https://cloud.google.com/sdk/gcloud/reference/billing/projects/describe).
+```bash
+npm run verify:online -- --help
+```
+
+La calidad visual de la propuesta y exactitud botánica/fuentes requieren revisión humana. El informe no sustituye comprobar QR con teléfono/impresora, etiquetas, descargas de marca, WhatsApp y crédito Vision Mind. No se han obtenido todavía capturas ni resultados de este flujo real.
+
+## Fallos, reversión y pruebas de preparación
+
+Antes de publicar, un fallo detiene el proceso. Durante el despliegue pueden quedar etapas completadas: reglas, worker, admin y Hosting no forman una transacción global. El informe marca `incomplete` y registra las etapas confirmadas. Si falla el backend, no se publica Hosting; si falla la comparación HTTPS después de Hosting, la publicación podría haber terminado y requiere inspección. No repetir a ciegas.
+
+`release:online` separa los informes: un despliegue correcto puede ir seguido de una prueba real fallida. Revisar ambos; no interpretar solo `status: deployed` como validación de IA.
+
+El frontend puede revertirse a una release Hosting verificada. Functions/reglas requieren revisión independiente; revertir Hosting no revierte datos ni permisos. No resetear el checkout del usuario ni restaurar inventario desde JSON.
+
+Validación de esta entrega: `npm run check` aprobado con **143 pruebas en 17 archivos**, lint, tipos frontend/backend y build. `npm run verify:online -- --help` también terminó correctamente, sin abrir navegador ni hacer solicitudes IA. El build mantiene el aviso de tamaño del chunk administrativo.
+
+Las pruebas unitarias de configuración/despliegue cubren registro o reutilización de app, respaldo de configuración, exclusión de secretos, modelos explícitos, Spark, secreto deshabilitado, conflictos de funciones, orden de publicación, fallos parciales, catálogo faltante y comparación HTTPS. Se complementan con pruebas de admin/rutas/galería/QR. La ejecución real permanece bloqueada por la preparación y sesión productivas pendientes.

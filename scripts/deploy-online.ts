@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { loadEnv } from 'vite';
-import { productionEnvironment, productionProject as project, productionOrigin as origin, firebaseResult } from './production-config.ts';
+import { productionEnvironment, productionAIConfig, productionProject as project, productionOrigin as origin, firebaseResult } from './production-config.ts';
 
 export type Command = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; capture: boolean };
 type Run = (command: Command) => string;
@@ -17,9 +17,10 @@ const runCommand: Run = ({ command, args, cwd, env, capture }) => {
  }
  return result.stdout ?? '';
 };
-type Options = { root: string; raw: Record<string, string>; ambient?: NodeJS.ProcessEnv; checkOnly?: boolean; run?: Run; fetcher?: typeof fetch; log?: (message: string) => void };
-export async function deployOnline({ root, raw, ambient = process.env, checkOnly = false, run = runCommand, fetcher = globalThis.fetch, log = console.log }: Options) {
+type Options = { root: string; raw: Record<string, string>; ai?: Record<string, string>; ambient?: NodeJS.ProcessEnv; checkOnly?: boolean; run?: Run; fetcher?: typeof fetch; log?: (message: string) => void };
+export async function deployOnline({ root, raw, ai = {}, ambient = process.env, checkOnly = false, run = runCommand, fetcher = globalThis.fetch, log = console.log }: Options) {
  const env = productionEnvironment(raw, ambient);
+ const aiConfig = productionAIConfig(ai);
  const command = (program: string, args: string[], capture = false) => run({ command: program, args, cwd: root, env, capture });
  const firebase = (args: string[], capture = false) => command(process.execPath, [join(root, 'node_modules/firebase-tools/lib/bin/firebase.js'), ...args, '--project', project, '--non-interactive'], capture);
  const json = <T,>(args: string[]) => firebaseResult<T>(firebase([...args, '--json'], true));
@@ -36,6 +37,12 @@ export async function deployOnline({ root, raw, ambient = process.env, checkOnly
  command('gcloud', ['storage', 'buckets', 'describe', 'gs://' + raw.VITE_FIREBASE_STORAGE_BUCKET, '--project', project, '--format=json', '--quiet'], true);
  const apps = json<{ appId: string; providers: string[] }[]>(['appcheck:apps:list']);
  if (!apps.some(item => item.appId === raw.VITE_FIREBASE_APP_ID && item.providers.includes('recaptcha-v3'))) throw new Error('Configurar App Check reCAPTCHA v3 para esta app antes de publicar el administrador.');
+ const secret = JSON.parse(command('gcloud', ['secrets', 'versions', 'describe', 'latest', '--secret=OPENAI_API_KEY', '--project', project, '--format=json', '--quiet'], true));
+ if (secret.state !== 'ENABLED') throw new Error('OPENAI_API_KEY necesita una versión habilitada en Secret Manager. No se leyó el contenido del secreto.');
+ const functions = json<{ id: string; region: string; platform: string; codebase?: string; labels?: Record<string, string> }[]>(['functions:list']);
+ for (const fn of functions.filter(item => ['adminCommand', 'processAI'].includes(item.id))) {
+  if (fn.region !== 'us-central1' || fn.platform !== 'gcfv2' || (fn.codebase ?? fn.labels?.['deployment-codebase'] ?? 'default') !== 'catalog') throw new Error('Hay una función con el mismo nombre en otra región, generación o codebase. Revisar la migración; no se forzará su reemplazo.');
+ }
  log('Ejecutando lint, tipos, pruebas, catálogo y compilaciones…');
  command('npm', ['run', 'check']);
  command('npm', ['run', 'build:backend']);
@@ -59,7 +66,7 @@ export async function deployOnline({ root, raw, ambient = process.env, checkOnly
   cpSync(join(root, 'functions/lib'), join(functions, 'lib'), { recursive: true });
   for (const file of ['package.json', 'package-lock.json']) cpSync(join(root, 'functions', file), join(functions, file));
   symlinkSync(join(root, 'functions/node_modules'), join(functions, 'node_modules'), 'dir');
-  writeFileSync(join(functions, '.env.' + project), 'AI_ENABLED=false\nAI_EMULATOR_OPENAI=false\nFUNCTION_REGION=us-central1\n');
+  writeFileSync(join(functions, '.env.' + project), Object.entries(aiConfig).map(([key, value]) => key + '=' + value).join('\n') + '\n');
   const config = JSON.parse(readFileSync(join(root, 'firebase.json'), 'utf8'));
   delete config.emulators;
   config.hosting = { ...config.hosting, site: project, public: join(root, 'dist') };
@@ -67,10 +74,19 @@ export async function deployOnline({ root, raw, ambient = process.env, checkOnly
   config.storage.rules = join(root, config.storage.rules);
   config.functions = [{ source: 'functions', codebase: 'catalog', ignore: ['node_modules', '.git', '.env*', '.secret*', '*-debug.log'] }];
   const configPath = join(stage, 'firebase.json'); writeFileSync(configPath, JSON.stringify(config, null, 2));
-  log('Publicando reglas, índices y la función administrativa; IA permanece apagada…');
-  firebase(['deploy', '--only', 'firestore,storage,functions:catalog:adminCommand', '--config', configPath]);
+  log('Publicando reglas e índices…');
+  firebase(['deploy', '--only', 'firestore,storage', '--config', configPath]);
+  steps.push('rules'); record();
+  // Firebase requires --force to enable the worker's existing retry policy non-interactively.
+  // Scope it to this single known endpoint; region/generation/codebase were checked above.
+  log('Publicando el procesador IA y su referencia a Secret Manager…');
+  firebase(['deploy', '--only', 'functions:catalog:processAI', '--config', configPath, '--force']);
+  steps.push('ai-worker'); record();
+  // Make the worker available before accepting new AI jobs through the admin callable.
+  log('Publicando la función administrativa con IA habilitada…');
+  firebase(['deploy', '--only', 'functions:catalog:adminCommand', '--config', configPath]);
   steps.push('backend'); record();
-  log('Publicando Hosting después del backend…');
+  log('Publicando Hosting después del backend completo…');
   firebase(['deploy', '--only', 'hosting', '--config', configPath]);
   steps.push('hosting'); record();
   const html = readFileSync(join(root, 'dist/index.html'), 'utf8').trim();
@@ -94,7 +110,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
  if (args.length > 1 || (args.length === 1 && args[0] !== '--check')) { console.error('Uso: npm run deploy:online [-- --check]'); process.exitCode = 2; }
  else {
   const root = fileURLToPath(new URL('../', import.meta.url));
-  try { await deployOnline({ root, raw: loadEnv('production', root, 'VITE_'), checkOnly: args[0] === '--check' }); }
+  try { await deployOnline({ root, raw: loadEnv('production', root, 'VITE_'), ai: loadEnv('production', root, ['OPENAI_TEXT_MODEL', 'OPENAI_IMAGE_MODEL']), checkOnly: args[0] === '--check' }); }
   catch (error) { console.error(error instanceof Error ? error.message : 'No se completó el despliegue.'); process.exitCode = 1; }
  }
 }

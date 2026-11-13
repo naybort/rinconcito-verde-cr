@@ -18,7 +18,10 @@
     "seed:emulators": "FIRESTORE_EMULATOR_HOST=127.0.0.1:18080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:19099 node scripts/seed-emulators.mjs",
     "test:emulators": "node scripts/test-emulators.mjs",
     "test:admin": "node scripts/test-emulators.mjs --ui",
-    "deploy:online": "node scripts/deploy-online.ts"
+    "deploy:online": "node scripts/deploy-online.ts",
+    "configure:online": "node scripts/configure-online.ts",
+    "verify:online": "node scripts/verify-online.ts",
+    "release:online": "npm run deploy:online && npm run verify:online"
   },
   "keywords": [],
   "type": "module",

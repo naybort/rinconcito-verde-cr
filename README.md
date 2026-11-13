@@ -1,6 +1,6 @@
-# Rinconcito Verde CR — V1 local
+# Rinconcito Verde CR
 
-Catálogo con las tres plantas de prueba originales, conservadas por instrucción de Bryan. Preparado para recibir datos reales después. Sin aviso ni badge de demostración. Repositorio remoto configurado: https://github.com/naybort/rinconcito-verde-cr. Hosting publicado: https://rinconcito-verde-cr.web.app (catálogo de prueba).
+Catálogo de vivero con cuatro fichas de prueba conservadas, administración privada, inventario, etiquetas QR y asistencia IA opcional. Repositorio: https://github.com/naybort/rinconcito-verde-cr. Hosting existente: https://rinconcito-verde-cr.web.app; consultar el estado de la entrega y preparación productiva en [docs/DEPLOY-ONLINE.md](docs/DEPLOY-ONLINE.md).
 
 ## Ejecutar
 ```bash
@@ -19,25 +19,27 @@ Node 24 recomendado. Dependencias ya instaladas en la Mac; para una copia nueva,
 ## Incluido
 Búsqueda por nombre sin tildes/mayúsculas, filtro por categoría, favoritos locales, detalles y cuidados con iconos, consulta individual/lista por WhatsApp +506 71160290. Con catálogo vacío se ocultan filtros y se ofrece contacto general. Los favoritos de productos retirados no aparecen.
 
-Menú Catálogo/Favoritos en flujo normal; crédito Powered by Vision Mind debajo del menú, sin superposición móvil. Ícono de marca derivado de imagen de Bryan. Sin cuentas, pagos, admin, publicaciones ni despliegue.
+Menú Catálogo/Favoritos en flujo normal; crédito Powered by Vision Mind debajo del menú, sin superposición móvil. Ícono de marca derivado de imagen de Bryan. La administración usa cuentas privadas autorizadas. No incluye cuentas de compradores ni pagos.
 
 ## Verificar
 ```bash
 npm run check
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm run test:e2e
 ```
-Ver `docs/VALIDATION.md`. Pendientes: datos/fotos reales, Safari, dominio y hosting. WhatsApp abre borrador; no envía automáticamente.
+Ver `docs/VALIDATION.md`. Pendientes: datos/fotos reales, Safari y verificación del despliegue completo en producción. WhatsApp abre borrador; no envía automáticamente.
 
-## Desplegar catálogo y administrador
+## Desplegar catálogo, administrador e IA
 
 Preparación inicial, requisitos y revisión en línea: [docs/DEPLOY-ONLINE.md](docs/DEPLOY-ONLINE.md).
 
 ```bash
+npm run configure:online
+# Completar App Check, modelos y requisitos iniciales indicados en la guía.
 npm run deploy:online -- --check
-npm run deploy:online
+npm run release:online
 ```
 
-El comando publica en `rinconcito-verde-cr` después de validar configuración cloud, acceso y requisitos existentes; ejecuta pruebas/build, publica backend antes de Hosting y comprueba HTTPS. Requiere la preparación productiva inicial. No activa billing ni IA y no modifica los emuladores.
+`configure:online` registra o reutiliza la app web y guarda su configuración pública. `release:online` valida requisitos y pruebas, publica reglas, procesador IA, admin y Hosting, verifica HTTPS y abre Chrome para probar las tres operaciones reales de IA en un borrador privado. Requiere la preparación productiva inicial, Blaze, secreto OpenAI y login manual de un administrador. No modifica los emuladores. Para probar otra cuenta sin nuevas llamadas IA: `npm run verify:online -- --access-only`.
 
 El comando anterior `npm run deploy -- --project rinconcito-verde-cr` publica exclusivamente Hosting; su antecedente está en [docs/DEVOPS.md](docs/DEVOPS.md).
 
