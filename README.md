@@ -1,6 +1,6 @@
 # Rinconcito Verde CR — V1 local
 
-Catálogo con las tres plantas de prueba originales, conservadas por instrucción de Bryan. Preparado para recibir datos reales después. Sin aviso ni badge de demostración. No publicado y sin remoto configurado.
+Catálogo con las tres plantas de prueba originales, conservadas por instrucción de Bryan. Preparado para recibir datos reales después. Sin aviso ni badge de demostración. Repositorio remoto configurado: https://github.com/naybort/rinconcito-verde-cr. Hosting publicado: https://rinconcito-verde-cr.web.app (catálogo de prueba).
 
 ## Ejecutar
 ```bash
@@ -27,3 +27,17 @@ npm run check
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm run test:e2e
 ```
 Ver `docs/VALIDATION.md`. Pendientes: datos/fotos reales, Safari, dominio y hosting. WhatsApp abre borrador; no envía automáticamente.
+
+## Despliegue Firebase Hosting
+Configuración y procedimiento en [docs/DEVOPS.md](docs/DEVOPS.md).
+Para publicar cambios autorizados en el proyecto existente:
+```bash
+npm run deploy -- --project rinconcito-verde-cr
+```
+Este comando publica el sitio: ejecuta lint, pruebas unitarias, validación JSON, TypeScript y build antes de desplegar exclusivamente Hosting. No crea recursos ni vincula facturación. Sin ID explícito se detiene.
+
+## Etapa 2 — administración local
+
+Administrador privado en `/#/admin`, inventario por cantidad/presentación y QR compartido por ficha. Configuración, emuladores, roles, IA opcional y despliegue posterior: [docs/ADMIN-STAGE2.md](docs/ADMIN-STAGE2.md). La configuración productiva permanece pendiente; sin variables Firebase el catálogo JSON sigue funcionando.
+
+Para probar OpenAI real sin desplegar Firebase, ver [docs/LOCAL-AI.md](docs/LOCAL-AI.md). La opción sigue apagada por defecto y requiere configuración privada del backend; las pruebas automatizadas no hacen llamadas pagas.

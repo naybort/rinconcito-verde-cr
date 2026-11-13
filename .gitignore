@@ -4,3 +4,15 @@ playwright-report/
 test-results/
 .env*
 !.env.example
+
+# Firebase local cache and diagnostic logs
+.firebase/
+firebase-debug.log*
+
+functions/lib/
+functions/node_modules/
+.emulator-data/
+*-debug.log
+
+# Local backend secrets are never versioned
+/functions/.secret*

@@ -1,0 +1,44 @@
+import { useRef, useState } from 'react';
+import { Alert, Box, Button, CircularProgress, Paper, Stack, TextField, Typography } from '@mui/material';
+import { firebaseMode } from '../../lib/firebase';
+import { identificationSchema, proposalSchema, draftPhotos, photoId, type AIKind, type Draft, type DraftPhoto } from '../../../functions/src/domain';
+import { PrivatePhoto } from './PrivatePhoto';
+import { canApplyJob } from './workflow';
+import { careLabels } from './Taxonomies';
+import { jobLabels, statusLabels } from './uiLabels';
+import type { Job } from './state';
+import type { Run } from './Inventory';
+const actions={identify:'Sugerir identificación',content:'Proponer contenido con fuentes',enhance:'Proponer mejora de fotografía'};
+const examples={identify:'Ej.: compará con Echeveria y explicá qué rasgos permiten distinguirla.',content:'Ej.: priorizá cuidados para un balcón con luz indirecta en Costa Rica.',enhance:'Ej.: fondo claro y encuadre centrado; conservar la maceta y todos los detalles.'};
+function Proposal({job}:{job:Job}){
+ const value=job.proposal;if(!value)return null;
+ if(job.kind==='identify')return <Stack spacing={1}>{'scientificName' in value?<><Typography><strong>Nombre científico:</strong> {String(value.scientificName||'No identificado')}</Typography><Typography><strong>Nombre común:</strong> {String(value.commonName||'No identificado')}</Typography><Typography variant="body2">Elegí el nombre de la ficha. El científico se conserva como identificación para buscar cuidados, si está disponible.</Typography></>:<Typography variant="h3">{String(value.name??'Sin identificación')}</Typography>}<Alert severity="info">{String(value.uncertainty||'Confirmá la identificación antes de continuar.')}</Alert></Stack>;
+ const parsed=proposalSchema.safeParse(value);if(!parsed.success)return <Alert severity="warning">La propuesta no tiene un formato válido. Continuá manualmente.</Alert>;
+ const p=parsed.data;return <Stack spacing={1}><Typography variant="h3">{p.name}</Typography><Typography sx={{whiteSpace:'pre-wrap'}}>{p.description}</Typography><Typography>Categorías: {p.categoryIds.join(', ')||'Sin sugerencias'}</Typography>{Object.entries(p.care).map(([key,text])=><Typography key={key}><strong>{careLabels[key as keyof typeof careLabels]}:</strong> {text||'Pendiente de completar'}</Typography>)}{p.warnings&&<Typography>{p.warnings}</Typography>}{p.uncertainty&&<Alert severity="info">{p.uncertainty}</Alert>}<Typography sx={{fontWeight:700}}>Fuentes de la propuesta</Typography>{p.sources.map((s,i)=><Typography key={i} variant="body2"><a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> · {s.accessedAt}</Typography>)}</Stack>;
+}
+export function AIAssistant({kind,draft,revision,dirty,busy,blocked,nextStep,canSave,save,jobs,run,set,photo,onPhotoChange}:{photo?:DraftPhoto;onPhotoChange?:(patch:Partial<DraftPhoto>)=>void;kind:AIKind;draft:Draft;revision:number;dirty:boolean;busy:boolean;blocked:boolean;nextStep:string;canSave:boolean;save:()=>void;jobs:Job[];run:Run;set:(patch:Partial<Draft>)=>void}){
+ const [submitted,setSubmitted]=useState<string|null>(null);const requestLock=useRef(false);const target=photo??draftPhotos(draft)[0];
+ const related=jobs.filter(j=>j.plantId===draft.id&&j.kind===kind&&(kind!=='enhance'||(j.photoId||j.originalPath)===photoId(target))).sort((a,b)=>(b.createdAt??'').localeCompare(a.createdAt??''));
+ const waiting=related.some(j=>['queued','running'].includes(j.status))||!!(submitted&&!related.some(j=>j.id===submitted));
+ const instructions=kind==='enhance'?(target.enhanceInstructions??''):draft.ai.instructions[kind];
+ async function generate(){if(blocked||waiting||requestLock.current)return;requestLock.current=true;try{const result=await run('requestAI',{plantId:draft.id,revision,kind,confirmedName:kind==='content'?draft.ai.confirmedName:'',additionalInstructions:instructions,...(kind==='enhance'?{photoId:photoId(target)}:{})}) as {jobId?:string}|undefined;if(result?.jobId)setSubmitted(result.jobId);}finally{requestLock.current=false;}}
+ return <Paper variant="outlined" sx={{p:{xs:2,sm:3},bgcolor:'#f2f7f3'}}><Stack spacing={2}>
+ <Typography component="h3" variant="h3">Asistencia IA · {jobLabels[kind]}</Typography>
+ <Typography variant="body2">OpenAI procesa la foto, el nombre y estas instrucciones. Revisá las propuestas antes de usarlas; nunca se publican automáticamente.</Typography>
+ {firebaseMode==='emulator'&&<Typography variant="body2">Prueba local: OpenAI real puede tener coste; la API se factura por separado de ChatGPT.</Typography>}
+ <TextField label={`Instrucciones adicionales · ${jobLabels[kind]}`} value={instructions} multiline minRows={2} placeholder={examples[kind]} helperText={`Opcional · ${instructions.length}/2000 caracteres. Vacío conserva las indicaciones base. No incluyás claves ni datos sensibles.`} slotProps={{htmlInput:{maxLength:2000}}} onChange={e=>kind==='enhance'?onPhotoChange?.({enhanceInstructions:e.target.value}):set({ai:{...draft.ai,instructions:{...draft.ai.instructions,[kind]:e.target.value}}})}/>
+ {nextStep&&<Alert severity="info">{nextStep}</Alert>}
+ {kind==='content'&&!draft.ai.confirmedName.trim()&&<Alert severity="info">Confirmá o corregí la identificación en el paso 3 para generar cuidados específicos. Podés completar estos campos manualmente.</Alert>}
+ {(dirty||!revision)&&<Button variant="outlined" disabled={!canSave} onClick={save}>Guardar borrador para usar IA</Button>}
+ <Button variant="contained" disabled={blocked||waiting||(kind==='content'&&!draft.ai.confirmedName.trim())} onClick={()=>void generate()}>{waiting?'Preparando propuesta…':actions[kind]}</Button>
+ {waiting&&<Stack direction="row" spacing={1} sx={{alignItems:'center'}} role="status"><CircularProgress size={20}/><Typography variant="body2">La propuesta aparecerá aquí. Podés seguir editando; no se reemplazarán tus cambios.</Typography></Stack>}
+ {related.map((job,i)=>{const identification=job.kind==='identify'?identificationSchema.safeParse(job.proposal):null;const current=canApplyJob(job,draft,revision,dirty);const applicable=!busy&&current;return <Paper component="details" key={job.id} open={i===0} variant="outlined" sx={{p:2,overflowWrap:'anywhere'}}>
+ <Typography component="summary" sx={{cursor:'pointer',minHeight:44,fontWeight:700}}>{jobLabels[job.kind]}: {statusLabels[job.status]??job.status} · versión {job.revision}</Typography><Stack spacing={2}>
+ {job.additionalInstructions&&<Typography variant="body2">Instrucciones usadas: {job.additionalInstructions}</Typography>}
+ {job.error&&<Alert severity="warning">{job.error} El borrador se conserva. Podés corregir la causa y solicitar otra propuesta.</Alert>}
+ {job.imagePath&&<><Box sx={{display:'grid',gridTemplateColumns:{xs:'1fr',sm:'1fr 1fr'},gap:2}}><Box><Typography>Original privado</Typography><PrivatePhoto path={job.originalPath||target.originalPath} label="Fotografía original"/></Box><Box><Typography>Propuesta IA</Typography><PrivatePhoto path={job.imagePath} label="Fotografía propuesta por IA"/></Box></Box><Button disabled={!applicable} onClick={()=>onPhotoChange?.({approvedImagePath:job.imagePath!})}>Verifiqué los detalles reales y elijo esta foto</Button></>}
+ {job.proposal&&<><Proposal job={job}/>{identification?.success?<Stack direction={{xs:'column',sm:'row'}} spacing={1}>{([['commonName','común'],['scientificName','científico']] as const).map(([key,label])=>identification.data[key]&&<Button key={key} variant="outlined" disabled={!applicable} onClick={()=>set({name:identification.data[key],ai:{...draft.ai,confirmedName:identification.data.scientificName||identification.data.commonName}})}>Usar nombre {label} en la ficha</Button>)}</Stack>:<Button disabled={!applicable} onClick={()=>{if(job.kind==='identify'){set({ai:{...draft.ai,confirmedName:String(job.proposal!.name??'')}});}else{const parsed=proposalSchema.safeParse(job.proposal);if(parsed.success){const {uncertainty:_,...fields}=parsed.data;void _;set({...fields,name:draft.name||fields.name});}}}}>Revisé y acepto esta propuesta en el borrador</Button>}{job.kind==='content'&&<Typography variant="body2">Al aceptar se conserva el nombre que elegiste para la ficha.</Typography>}</>}
+ {job.status==='ready'&&kind==='enhance'&&target.approvedImagePath===job.imagePath?<Alert severity="success">Esta propuesta está elegida para esta fotografía. Podés volver al original sin generar otra.</Alert>:job.status==='ready'&&!current&&<Alert severity="info">{kind==='enhance'?'La foto, sus instrucciones o la elección cambiaron desde esta solicitud. Se conserva la propuesta, sin reemplazar tus cambios.':'Esta propuesta corresponde a otra versión o hay cambios sin guardar. No se aplicará sobre tus ediciones. Guardá y solicitá una nueva si la necesitás.'}</Alert>}
+ </Stack></Paper>;})}
+ </Stack></Paper>;
+}

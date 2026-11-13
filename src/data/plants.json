@@ -60,6 +60,25 @@
         "humidity": "Prefiere humedad ambiental alta.",
         "temperature": "Buscá un espacio cálido, sin cambios bruscos."
       }
+    },
+    {
+      "id": "sansevieria",
+      "name": "Sansevieria",
+      "categoryIds": [
+        "interior",
+        "suculentas"
+      ],
+      "description": "Un toque verde con mucha personalidad. La sansevieria es resistente y de cuidados sencillos, ideal para darle vida a tu casa u oficina sin una rutina complicada. Mantenela fuera del alcance de perros y gatos: puede ser tóxica si la ingieren.",
+      "image": {
+        "src": "/images/sansevieria.png",
+        "alt": "Planta de hojas compactas verdes y claras en una maceta terracota sobre fondo cálido"
+      },
+      "care": {
+        "light": "Ubicala con luz indirecta abundante. Tolera poca luz, pero evitá cambios bruscos al sol intenso.",
+        "watering": "Dejá secar el sustrato entre riegos. Usá una maceta con buen drenaje y no dejés agua acumulada.",
+        "humidity": "La humedad habitual de casa es suficiente. Procurá buena ventilación y evitá el exceso de humedad.",
+        "temperature": "Mantenela en un ambiente templado, protegida del frío y de las corrientes frías."
+      }
     }
   ]
 }

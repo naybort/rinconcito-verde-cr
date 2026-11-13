@@ -5,7 +5,7 @@ for (const width of [320,390,768,1280]) {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await expect(page.getByRole('article')).toHaveCount(3);
+  await expect(page.getByRole('article')).toHaveCount(4);
   await expect(page.getByRole('heading', { name: 'Encontrá tu próxima planta' })).toBeVisible();
   await expect(page.getByText('Catálogo de demostración', { exact: false })).toHaveCount(0);
   await page.getByRole('searchbox').fill('monstéra');
@@ -52,3 +52,20 @@ test('detalle con iconos y favorito relleno', async ({ page }) => {
  await expect(page.getByRole('link', { name: 'Consultar esta planta por WhatsApp' })).toHaveAttribute('href', /^https:\/\/wa.me\/50671160290\?text=/);
  await page.screenshot({path:'test-results/detail-icons.png',fullPage:true});
 });
+
+ test('sansevieria: cuidados, foto, favoritos y consulta', async ({ page }) => {
+ await page.goto('/');
+ await page.getByRole('searchbox').fill('sansevieria');
+ await expect(page.getByRole('article')).toHaveCount(1);
+ await page.getByRole('link', {name:'Ver detalle de Sansevieria'}).click();
+ await expect(page.getByRole('heading', {name:'Sansevieria',exact:true})).toBeVisible();
+ await expect(page.getByText(/puede ser tóxica si la ingieren/)).toBeVisible();
+ const image=page.getByRole('img', {name:'Planta de hojas compactas verdes y claras en una maceta terracota sobre fondo cálido'});
+ await expect(image).toBeVisible();
+ expect(await image.evaluate((el: HTMLImageElement)=>el.complete && el.naturalWidth>0)).toBe(true);
+ await page.getByRole('button',{name:'Añadir a favoritos'}).click();
+ await page.reload();
+ await expect(page.getByRole('button',{name:'Quitar de favoritos'})).toHaveAttribute('aria-pressed','true');
+ await expect(page.getByRole('link',{name:'Consultar esta planta por WhatsApp'})).toHaveAttribute('href',/Sansevieria/);
+ await page.screenshot({path:'test-results/sansevieria-detail.png',fullPage:true});
+ });

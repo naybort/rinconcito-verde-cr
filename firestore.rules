@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function staff() { return request.auth != null && request.auth.token.role in ['admin','editor'] && exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid)) && get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.active == true && get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role == request.auth.token.role; }
+  match /publicPlants/{id} { allow read: if true; allow write: if false; }
+  match /publicCategories/{id} { allow read: if true; allow write: if false; }
+  match /adminUsers/{uid} { allow get: if staff() && request.auth.uid == uid; allow list, write: if false; }
+  match /{collection}/{id} {
+   allow read: if collection in ['plants','categories','careTemplates','stocks','movements','audit','aiJobs'] && staff();
+   allow write: if false;
+  }
+ }
+}

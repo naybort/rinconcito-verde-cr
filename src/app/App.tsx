@@ -1,24 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Box, Button, Chip, Container, Divider, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Container, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
 import { PlantIcon } from '../shared/PlantIcon';
 import business from '../config/business.json';
-import { catalog } from '../features/catalog/data';
+import { catalog as localCatalog } from '../features/catalog/data';
+import { lazy, Suspense } from 'react';
+import type { Catalog } from '../features/catalog/schema';
+import { usePublicCatalog } from '../features/catalog/usePublicCatalog';
+const Admin = lazy(() => import('../features/admin/Admin'));
 import { PlantCard } from '../features/catalog/PlantCard';
-import { PlantPhoto } from '../shared/PlantPhoto';
+import { PlantGallery, plantImages } from '../features/catalog/PlantGallery';
 import { useFavorites } from '../features/favorites/useFavorites';
 import { buildMessage, buildWhatsAppLink } from '../features/contact/whatsapp';
-const ids = catalog.plants.map(p => p.id);
+
 function useRoute() {
  const [route, setRoute] = useState(window.location.hash || '#/');
  useEffect(() => { const update = () => setRoute(window.location.hash || '#/'); window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update); }, []);
  return route;
 }
 export default function App() {
+ const route=useRoute();
+ if(route.startsWith('#/admin'))return <Suspense fallback={<Typography role="status">Cargando administración…</Typography>}><Admin/></Suspense>;
+ return <PublicCatalog/>;
+}
+function PublicCatalog(){
+ const {catalog,loading,error}=usePublicCatalog(localCatalog);
+ if(loading)return <Container sx={{py:5}}><Typography role="status">Cargando catálogo…</Typography></Container>;
+ return <>{error&&<Alert severity="warning">{error}</Alert>}<CatalogView catalog={catalog}/></>;
+}
+function CatalogView({catalog}:{catalog:Catalog}) {
+ const ids=catalog.plants.map(p=>p.id);
  const route = useRoute();
  const [query, setQuery] = useState('');
  const [category, setCategory] = useState('');
  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').trim();
- const filteredPlants = catalog.plants.filter(p => (!category || p.categoryIds.includes(category)) && normalize(p.name).includes(normalize(query)));
+ const filteredPlants = catalog.plants.filter(p => (!category || p.categoryIds.includes(category)) && normalize(p.name).includes(normalize(query)) && p.available!==false);
  const clearFilters = () => { setQuery(''); setCategory(''); };
  const favorites = useFavorites(ids);
  const heading = useRef<HTMLHeadingElement>(null);
@@ -48,15 +63,12 @@ export default function App() {
   {favorites.warning && <Container maxWidth="lg"><Alert severity="info" sx={{ my: 1 }}>{favorites.warning}</Alert></Container>}
   <Box component="main" id="contenido" sx={{ pb: 6, minHeight: 'calc(100dvh - 230px)' }}>
    {isDetail && plant ? <>
-    <Box sx={{ maxWidth: 896, mx: 'auto', position: 'relative' }}>
-     <PlantPhoto key={plant.id} image={plant.detailImage || plant.image} height={{ xs: 360, md: 470 }} eager />
-     <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(0deg,#f9f9f8,transparent 50%)', pointerEvents: 'none' }} />
-     <IconButton component="a" href="#/" aria-label="Volver al catálogo" sx={{ position: 'absolute', top: 20, left: 20, width: 48, height: 48, bgcolor: 'rgba(255,255,255,.8)', backdropFilter: 'blur(12px)' }}><img src="/icons/back.svg" alt="" /></IconButton>
-    </Box>
-    <Box sx={{ maxWidth: 896, mx: 'auto', px: { xs: '20px', md: 4 }, position: 'relative', mt: '-48px' }}>
+    <PlantGallery key={plant.id} plant={plant}/>
+    <Box sx={{ maxWidth: 896, mx: 'auto', px: { xs: '20px', md: 4 }, position: 'relative', mt: plantImages(plant).length>1?0:'-48px' }}>
      <Stack direction="row" sx={{ mb: 1, gap: 1, flexWrap: "wrap" }}>{catalog.categories.filter(c => plant.categoryIds.includes(c.id)).map(c => <Chip key={c.id} label={c.name} size="small" sx={{ bgcolor: '#ccd8d0' }} />)}</Stack>
      <Typography {...titleProps} component="h1" variant="h1" sx={{ overflowWrap: 'anywhere' }}>{plant.name}</Typography>
 
+     {plant.available===false&&<Alert severity="info" sx={{mt:2}}>Esta ficha está archivada. Conservamos sus cuidados para tu planta.</Alert>}
      <Typography color="text.secondary" sx={{ mt: 3, lineHeight: '26px', maxWidth: 650 }}>{plant.description || 'Consultá al vivero para conocer más sobre esta planta.'}</Typography>
      <Box component="section" aria-labelledby="cuidados-heading" sx={{ mt: 4 }}>
       <Typography id="cuidados-heading" component="h2" variant="h3">Cómo cuidar tu planta</Typography>
@@ -65,6 +77,8 @@ export default function App() {
        {([['light', 'Luz'], ['watering', 'Riego'], ['humidity', 'Humedad'], ['temperature', 'Temperatura']] as const).map(([key, label]) => <Paper key={key} variant="outlined" sx={{ p: 2.5, bgcolor: '#eef3ee' }}><Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', color: 'primary.main' }}><PlantIcon kind={key} /><Typography component="h3" sx={{ fontWeight: 700 }}>{label}</Typography></Stack><Typography color="text.secondary" sx={{ mt: 1 }}>{plant.care![key]}</Typography></Paper>)}
       </Box> : <Typography color="text.secondary">Consultanos por WhatsApp para conocer sus cuidados.</Typography>}
      </Box>
+     {plant.warnings&&<Alert severity="warning" sx={{mt:2}}>{plant.warnings}</Alert>}
+     {plant.sources?.length ? <Box sx={{mt:2}}><Typography component="h2" variant="h3">Fuentes de cuidados</Typography>{plant.sources.map(source=><Typography key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> · {source.accessedAt}</Typography>)}</Box>:null}
      <Button variant="contained" fullWidth aria-pressed={favorites.ids.includes(plant.id)} onClick={() => favorites.toggle(plant.id)} startIcon={<PlantIcon kind="heart" filled={favorites.ids.includes(plant.id)} />} sx={{ mt: 5, py: 3 }}>
       {favorites.ids.includes(plant.id) ? 'Quitar de favoritos' : 'Añadir a favoritos'}
      </Button>
