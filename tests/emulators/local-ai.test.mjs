@@ -94,7 +94,7 @@ test('clave local ausente o indicador apagado rechazan antes de gastar cuota o l
 
 test('instrucciones se guardan por tipo y viajan desde solicitud a trabajo y proveedor sin publicar',async()=>{
  process.env.AI_EMULATOR_OPENAI='true';const calls=providerCalls;
- const preferences={confirmedName:'Identificación humana',instructions:{identify:'Compará especies posibles',content:'Cuidados para Costa Rica',enhance:'Fondo claro sin alterar hojas'}};
+ const preferences={confirmedName:'Identificación humana',contentJobId:'',instructions:{identify:'Compará especies posibles',content:'Cuidados para Costa Rica',enhance:'Fondo claro sin alterar hojas'}};
  const snapshot=(await db.doc('plants/local-ai-test').get()).data();
  const {revision,status,updatedAt,updatedBy,publishedRevision,...draft}=snapshot;void status;void updatedAt;void updatedBy;void publishedRevision;
  const saved=await call('savePlant',{revision,draft:{...draft,ai:preferences}});assert.deepEqual(saved.plant.ai,preferences);
@@ -175,7 +175,35 @@ test('contenido con comentario intermedio y respuesta final estructurada queda l
  let captured;const transport=globalThis.fetch;const spy=mock.method(globalThis,'fetch',async(url,options)=>{if(new URL(String(url)).hostname==='api.openai.com')captured=JSON.parse(options.body);return transport(url,options);});
  try{
   const created=await call('requestAI',{plantId:'local-ai-test',revision:before.revision,kind:'content',confirmedName:'Pastora'});const calls=providerCalls;await run(created.jobId);await run(created.jobId);
-  const job=(await db.doc('aiJobs/'+created.jobId).get()).data();assert.equal(job.status,'ready');assert.deepEqual(job.proposal,proposal);assert.equal(providerCalls,calls+1);assert.equal(captured.text.format.type,'json_schema');assert.equal(captured.text.format.strict,true);assert.equal(captured.max_output_tokens,3000);
+  const job=(await db.doc('aiJobs/'+created.jobId).get()).data();assert.equal(job.status,'ready');assert.deepEqual(job.proposal,{...proposal,categorySuggestions:[],sources:proposal.sources.map(source=>({...source,verification:'verified'}))});assert.equal(providerCalls,calls+1);assert.equal(captured.text.format.type,'json_schema');assert.equal(captured.text.format.strict,true);assert.equal(captured.max_output_tokens,3000);
  }finally{spy.mock.restore();providerBodyOverride=undefined;}
  assert.deepEqual((await db.doc('plants/local-ai-test').get()).data(),before);assert.equal((await db.doc('publicPlants/local-ai-test').get()).exists,false);
+});
+
+test('identificación contextual: nombre no carga fotos, selección múltiple persiste y no publica',async()=>{
+ const {blankDraft,withPhotos}=await import(pathToFileURL(process.env.RV_TEST_FUNCTIONS_SOURCE+'/lib/domain.js').href);
+ const id='contextual-ai-test';const photos=[0,1].map(i=>({image:{src:'',alt:'Vista '+i},originalPath:`originals/local-admin/${id}/photo-${i}`,approvedImagePath:''}));
+ for(const photo of photos)await getStorage().bucket().file(photo.originalPath).save(image,{resumable:false,metadata:{contentType:'image/png'}});
+ await call('savePlant',{draft:withPhotos({...blankDraft(id),name:'Sansevieria'},photos),revision:0});
+ let captured;const transport=globalThis.fetch;const spy=mock.method(globalThis,'fetch',async(url,options)=>{if(new URL(String(url)).hostname==='api.openai.com')captured=JSON.parse(options.body);return transport(url,options);});
+ try{
+  const byName=await call('requestAI',{plantId:id,revision:1,kind:'identify',confirmedName:'',inputMode:'name'});await run(byName.jobId);
+  const named=(await db.doc('aiJobs/'+byName.jobId).get()).data();assert.equal(named.status,'ready');assert.deepEqual(named.originalPaths,[]);assert.equal(captured.input[0].content.filter(block=>block.type==='input_image').length,0);
+  const selected=photos.map(photo=>photo.originalPath).reverse();const multiple=await call('requestAI',{plantId:id,revision:1,kind:'identify',confirmedName:'',inputMode:'photos',photoIds:selected});await run(multiple.jobId);
+  const job=(await db.doc('aiJobs/'+multiple.jobId).get()).data();assert.equal(job.status,'ready');assert.deepEqual(job.originalPaths,selected);assert.equal(captured.input[0].content.filter(block=>block.type==='input_image').length,2);
+ }finally{spy.mock.restore();}
+ assert.equal((await db.doc('plants/'+id).get()).data().revision,1);assert.equal((await db.doc('publicPlants/'+id).get()).exists,false);
+});
+
+test('tips: una solicitud explícita crea propuesta privada sin alterar configuración ni duplicar cuota',async()=>{
+ const before=(await db.doc('siteSettings/publicLoading').get()).data();
+ const quota=db.doc('aiQuotas/'+new Date().toISOString().slice(0,10)+'-local-admin'),count=(await quota.get()).data().count;
+ providerBodyOverride={status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({tips:['Revisá la humedad antes de regar.']})}]}]};
+ try{
+  const requestId=crypto.randomUUID(),payload={prompt:'Consejos sobre riego'};
+  const [a,b]=await Promise.all([call('requestLoadingTips',payload,requestId),call('requestLoadingTips',payload,requestId)]);assert.equal(a.jobId,b.jobId);
+  const calls=providerCalls;await run(a.jobId);await run(a.jobId);assert.equal(providerCalls,calls+1);
+  const job=(await db.doc('aiJobs/'+a.jobId).get()).data();assert.equal(job.status,'ready');assert.equal(job.kind,'loadingTips');assert.deepEqual(job.proposal,{tips:['Revisá la humedad antes de regar.']});
+  assert.equal((await quota.get()).data().count,count+1);assert.deepEqual((await db.doc('siteSettings/publicLoading').get()).data(),before);
+ }finally{providerBodyOverride=undefined;}
 });

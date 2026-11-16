@@ -26,20 +26,20 @@ for (const width of [320, 390, 768, 1280]) {
  test('galería completa, teclado, foco y descarga a ' + width, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   await page.goto('/#/plantas/demo-monstera');
-  const opener = page.getByRole('button', { name: 'Ver foto completa', exact: true });
+  const opener = page.getByRole('button', { name: 'Ver imagen', exact: true });
   await expect(page.getByRole('img', { name: 'Monstera de hojas grandes en una maceta blanca' })).toHaveCSS('object-fit', 'contain');
   await page.screenshot({ path: `test-results/full-plant-${width}.png`, fullPage: true });
   await opener.click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Foto siguiente' }).focus();
+  await dialog.getByRole('button', { name: 'Imagen siguiente' }).focus();
   await page.keyboard.press('ArrowRight');
-  await expect(dialog.getByRole('status')).toContainText('Foto 2 de 2');
+  await expect(dialog.getByRole('status')).toContainText('Imagen 2 de 2');
   await page.keyboard.press('ArrowRight');
-  await expect(dialog.getByRole('status')).toContainText('Foto 1 de 2');
+  await expect(dialog.getByRole('status')).toContainText('Imagen 1 de 2');
   await page.screenshot({ path: `test-results/full-photo-${width}.png`, fullPage: true });
   const waiting = page.waitForEvent('download');
-  await dialog.getByRole('button', { name: 'Descargar foto con marca' }).click();
+  await dialog.getByRole('button', { name: 'Descargar imagen' }).click();
   const download = await waiting;
   expect(download.suggestedFilename()).toBe('demo-monstera-foto-1-rinconcito-verde.png');
   const file = `test-results/branded-photo-${width}.png`;
@@ -102,6 +102,35 @@ for (const width of [320, 1280]) {
   await page.pdf({ path: `test-results/labels-${width}.pdf`, format: 'A4', printBackground: true, displayHeaderFooter: false, scale: 1 });
  });
 }
+for (const width of [320, 1280]) {
+ test('casita y contacto mantienen QR, descarga y tamaño mínimo a ' + width, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto('/tests/labels-browser.html');
+  await expect(page.getByLabel('Diseño de etiqueta', { exact: true })).toHaveValue('compact');
+  await page.getByRole('checkbox', { name: 'Sansevieria', exact: true }).check();
+  await page.getByLabel('Diseño de etiqueta', { exact: true }).selectOption('house');
+  const print = page.getByRole('button', { name: 'Imprimir / guardar PDF' });
+  await expect(print).toBeEnabled();
+  await expect(page.getByLabel('Alto (mm)', { exact: true })).toHaveValue('80');
+  expect(decode(await page.locator('.plant-label').first().screenshot())).toBe('https://rinconcito-verde-cr.web.app/#/plantas/sansevieria');
+  const waiting = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Descargar etiqueta de Sansevieria · sansevieria', exact: true }).click();
+  const download = await waiting;
+  expect(download.suggestedFilename()).toBe('etiqueta-sansevieria-casita.svg');
+  await download.saveAs(`test-results/etiqueta-casita-${width}.svg`);
+  const svg = await readFile(`test-results/etiqueta-casita-${width}.svg`, 'utf8');
+  expect(svg).toContain('Cartago, Cervantes, El Descanso');
+  expect(svg).toContain('WhatsApp +506 7116 0290');
+  expect(svg).not.toContain('href="/');
+  await page.screenshot({ path: `test-results/etiquetas-casita-${width}.png`, fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByLabel('Alto (mm)', { exact: true }).fill('79');
+  await expect(print).toBeDisabled();
+  await page.getByLabel('Diseño de etiqueta', { exact: true }).selectOption('compact');
+  await expect(print).toBeEnabled();
+  await expect(page.getByLabel('Alto (mm)', { exact: true })).toHaveValue('50');
+ });
+}
 test('fallo del ícono y reintento no imprimen etiquetas incompletas', async ({ page }) => {
  await page.route('**/rinconcito-icon.png', route => route.abort());
  await page.goto('/tests/labels-browser.html');
@@ -116,11 +145,11 @@ test('foto fallida mantiene navegación y permite cerrar el visor', async ({ pag
  await page.route('**/images/monstera.png', route => route.abort());
  await page.goto('/#/plantas/demo-monstera');
  await expect(page.getByText('Imagen no disponible')).toBeVisible();
- await page.getByRole('button', { name: 'Ver foto completa', exact: true }).click();
- await page.getByRole('dialog').getByRole('button', { name: 'Descargar foto con marca' }).click();
+ await page.getByRole('button', { name: 'Ver imagen', exact: true }).click();
+ await page.getByRole('dialog').getByRole('button', { name: 'Descargar imagen' }).click();
  await expect(page.getByRole('dialog').getByRole('alert')).toBeVisible();
- await page.getByRole('dialog').getByRole('button', { name: 'Foto siguiente' }).click();
+ await page.getByRole('dialog').getByRole('button', { name: 'Imagen siguiente' }).click();
  await expect(page.getByRole('dialog').getByRole('img', { name: 'Detalle de una hoja verde de monstera' })).toBeVisible();
- await page.getByRole('button', { name: 'Cerrar foto' }).click();
+ await page.getByRole('button', { name: 'Cerrar' }).click();
  await expect(page.getByRole('dialog')).not.toBeVisible();
 });

@@ -1,9 +1,12 @@
 import business from '../../config/business.json';
 
-// One existing asset and palette for the web frame, image exports and labels.
+// Preserve existing compositions; the public house icon is a faithful crop of the original flyer.
 export const identity = {
  name: business.name,
  icon: '/rinconcito-icon.png',
+ houseIcon: '/rinconcito-house.png',
+ location: 'Cartago, Cervantes, El Descanso',
+ whatsapp: business.whatsappNumber.replace(/^506(\d{4})(\d{4})$/, '+506 $1 $2'),
  ink: '#2c694e',
  paper: '#f9f9f8',
  line: '#ccd8d0',
@@ -19,9 +22,12 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
  });
 }
 
-let iconData: Promise<string> | undefined;
-export function brandIconData(): Promise<string> {
- return iconData ??= fetch(identity.icon).then(async response => {
+const iconData = new Map<string, Promise<string>>();
+export function brandIconData(variant: 'compact' | 'house' = 'compact'): Promise<string> {
+ const path = variant === 'house' ? identity.houseIcon : identity.icon;
+ const cached = iconData.get(path);
+ if (cached) return cached;
+ const data = fetch(path).then(async response => {
   if (!response.ok) throw new Error('No se pudo cargar el ícono de marca.');
   const blob = await response.blob();
   return new Promise<string>((resolve, reject) => {
@@ -30,7 +36,9 @@ export function brandIconData(): Promise<string> {
    reader.onerror = () => reject(new Error('No se pudo preparar el ícono de marca.'));
    reader.readAsDataURL(blob);
   });
- }).catch(error => { iconData = undefined; throw error; });
+ }).catch(error => { iconData.delete(path); throw error; });
+ iconData.set(path, data);
+ return data;
 }
 
 export function downloadBlob(blob: Blob, name: string) {

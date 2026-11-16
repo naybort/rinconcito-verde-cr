@@ -23,9 +23,9 @@ it('una propuesta de otra foto no reemplaza selecciones ni depende de la posiciÃ
 });
 it('conserva la preferencia de portada anterior sin propagarla a las demÃ¡s fotos',()=>{
  const old={...blankDraft('plant'),name:'Planta',originalPath:a.originalPath,ai:{confirmedName:'',instructions:{identify:'',content:'',enhance:'Preferencia antigua'}},gallery:[b]};
- const photos=draftPhotos(draftSchema.parse(old));expect(photos[0].enhanceInstructions).toBe('Preferencia antigua');
- const reordered=withPhotos(old,[b,photos[0]]);expect(reordered.enhanceInstructions).toBe(b.enhanceInstructions);expect(reordered.gallery[0].enhanceInstructions).toBe('Preferencia antigua');
- const empty=withPhotos(old,[{...b,enhanceInstructions:''},photos[0]]);expect(draftPhotos(empty)[0].enhanceInstructions).toBe('');
+ const parsed=draftSchema.parse(old);const photos=draftPhotos(parsed);expect(photos[0].enhanceInstructions).toBe('Preferencia antigua');
+ const reordered=withPhotos(parsed,[b,photos[0]]);expect(reordered.enhanceInstructions).toBe(b.enhanceInstructions);expect(reordered.gallery[0].enhanceInstructions).toBe('Preferencia antigua');
+ const empty=withPhotos(parsed,[{...b,enhanceInstructions:''},photos[0]]);expect(draftPhotos(empty)[0].enhanceInstructions).toBe('');
 });
 it('valida identidad, instrucciones y rechaza fotos retiradas o sin original',()=>{
  const request={plantId:'plant',revision:1,kind:'enhance',confirmedName:'',photoId:photoId(b)};expect(aiRequestSchema.safeParse(request).success).toBe(true);

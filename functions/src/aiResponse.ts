@@ -6,9 +6,10 @@ const object=(properties:Record<string,unknown>)=>({type:'object',properties,req
 const strings=(keys:string[])=>Object.fromEntries(keys.map(key=>[key,{type:'string'}]));
 // Provider schema controls shape; the domain schema still enforces bounds and business rules.
 export function responseFormat(kind:'identify'|'content',categories:string[]){
- const schema=kind==='identify'?object(strings(['scientificName','commonName','uncertainty'])):object({
+ const schema=kind==='identify'?object({...strings(['scientificName','commonName','uncertainty']),alternatives:{type:'array',items:object(strings(['scientificName','commonName','uncertainty']))}}):object({
   ...strings(['name','description','warnings','uncertainty']),
   categoryIds:{type:'array',items:{type:'string',...(categories.length?{enum:categories}:{})}},
+  categorySuggestions:{type:'array',items:{type:'string'}},
   care:object(strings(['light','watering','humidity','temperature'])),
   sources:{type:'array',items:object(strings(['title','url','accessedAt']))}
  });
@@ -21,7 +22,7 @@ function counts(usage:unknown):Details{
  const data=record(usage);const outputTokens=boundedCount(data?.output_tokens);const reasoningTokens=boundedCount(record(data?.output_tokens_details)?.reasoning_tokens);
  return {...(outputTokens!==undefined?{outputTokens}:{}),...(reasoningTokens!==undefined?{reasoningTokens}:{})};
 }
-const fields=new Set(['scientificName','commonName','uncertainty','name','description','categoryIds','care','light','watering','humidity','temperature','warnings','sources','title','url','accessedAt']);
+const fields=new Set(['scientificName','commonName','uncertainty','name','description','categoryIds','care','light','watering','humidity','temperature','warnings','sources','title','url','accessedAt','verification','alternatives','categorySuggestions']);
 function invalidSchema(error:z.ZodError,details:Details):never{
  // Never copy received values, unknown keys, schema messages or provider text into diagnostics.
  const paths=[...new Set(error.issues.slice(0,8).map(issue=>issue.path.map(p=>typeof p==='number'?'item':typeof p==='string'&&fields.has(p)?p:'unknown').join('.')||'root'))];
@@ -63,6 +64,14 @@ export function parseTextResponse(body:unknown,kind:'identify'|'content',categor
   return {image:null,proposal:proposal.data,usage:result.usage??null};
  }
  const validated=proposalSchema.safeParse(parsed);if(!validated.success)invalidSchema(validated.error,details);const proposal=validated.data;
- if(!proposal.sources.length||proposal.sources.some(s=>!cited.has(s.url)||s.accessedAt!==date)||proposal.categoryIds.some(c=>!categories.includes(c)))throw new AIError('sources_unverified');
- return {image:null,proposal,usage:result.usage??null};
+ if(proposal.categoryIds.some(c=>!categories.includes(c)))throw new AIError('sources_unverified');
+ // A provider-supplied label is never evidence. Only URLs observed in actual
+ // citation/search metadata can become verified; unknown URLs are discarded.
+ const sources=proposal.sources.map(source=>{
+  const title=source.title.replace(/\b(?:https?:\/\/|www\.)\S+/gi,'').trim()||'Referencia para revisar';
+  return source.url&&cited.has(source.url)
+   ? {title,url:source.url,accessedAt:date,verification:'verified' as const}
+   : {title,verification:'unverified' as const};
+ });
+ return {image:null,proposal:{...proposal,sources},usage:result.usage??null};
 }

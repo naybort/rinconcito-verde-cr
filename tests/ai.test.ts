@@ -5,11 +5,12 @@ const input={kind:'content' as const,confirmedName:'Sansevieria',nameHint:'Lengu
 const config={key:'test-only',textModel:'configured-text-model',imageModel:'configured-image-model',requestId:'job-test'};
 const photo={data:new Uint8Array([137,80,78,71,13,10,26,10]),mime:'image/png'};
 const proposal={name:'Sansevieria',description:'Texto sugerido',categoryIds:['interior'],care:{light:'Luz indirecta',watering:'Moderado',humidity:'Normal',temperature:'Templada'},warnings:'',sources:[{title:'Fuente botánica',url:'https://example.test/botany',accessedAt:new Date().toISOString().slice(0,10)}],uncertainty:'Revisar identificación'};
+const verifiedProposal={...proposal,categorySuggestions:[],sources:proposal.sources.map(source=>({...source,verification:'verified'}))};
 function response(value:unknown,cited=true){return new Response(JSON.stringify({output:[{content:[{type:'output_text',text:JSON.stringify(value),annotations:cited?[{type:'url_citation',url:'https://example.test/botany'}]:[]}]}],usage:{output_tokens:50}}));}
 it('contenido validado solo admite fuentes devueltas por búsqueda y categorías existentes',async()=>{
- const transport=vi.fn<typeof fetch>().mockResolvedValue(response(proposal));const result=await generateAI(input,photo,['interior'],config,transport);expect(result.proposal).toEqual(proposal);
+ const transport=vi.fn<typeof fetch>().mockResolvedValue(response(proposal));const result=await generateAI(input,photo,['interior'],config,transport);expect(result.proposal).toEqual(verifiedProposal);
  const request=JSON.parse(String(transport.mock.calls[0][1]?.body));expect(request.store).toBe(false);expect(request.max_output_tokens).toBe(3000);expect(request.tools).toEqual([{type:'web_search'}]);
- await expect(generateAI(input,photo,['interior'],config,vi.fn().mockResolvedValue(response(proposal,false)))).rejects.toThrow('fuentes');
+ expect((await generateAI(input,photo,['interior'],config,vi.fn().mockResolvedValue(response(proposal,false)))).proposal).toMatchObject({sources:[{title:'Fuente botánica',verification:'unverified'}]});
  await expect(generateAI(input,photo,[],config,vi.fn().mockResolvedValue(response(proposal)))).rejects.toThrow('categorías');
 });
 it('IA no introduce stock, precio ni publicación; requiere identificación humana para cuidados',async()=>{
@@ -17,7 +18,7 @@ it('IA no introduce stock, precio ni publicación; requiere identificación huma
  const transport=vi.fn();await expect(generateAI({...input,confirmedName:''},photo,[],config,transport)).rejects.toThrow('identificación');expect(transport).not.toHaveBeenCalled();
 });
 it('identificación conserva incertidumbre y fallo de proveedor es recuperable',async()=>{
- const value={scientificName:'Sansevieria trifasciata',commonName:'Lengua de suegra',uncertainty:'La foto no permite certeza'};const result=await generateAI({...input,kind:'identify'},photo,[],config,vi.fn().mockResolvedValue(response(value)));expect(result.proposal).toEqual(value);
+ const value={scientificName:'Sansevieria trifasciata',commonName:'Lengua de suegra',uncertainty:'La foto no permite certeza'};const result=await generateAI({...input,kind:'identify'},photo,[],config,vi.fn().mockResolvedValue(response(value)));expect(result.proposal).toEqual({...value,alternatives:[]});
  await expect(generateAI(input,photo,[],config,vi.fn().mockResolvedValue(new Response('',{status:429})))).rejects.toBeInstanceOf(RetryableAIError);
  await expect(generateAI(input,photo,[],config,vi.fn().mockResolvedValue(new Response('',{status:401})))).rejects.not.toBeInstanceOf(RetryableAIError);
 });
@@ -72,4 +73,21 @@ it('la base pide ambos nombres y cuidados prácticos sin bloquearse por variacio
  expect(JSON.parse(String(identify.mock.calls[0][1]?.body)).input[0].content[0].text).toContain('scientificName');
  const care=vi.fn<typeof fetch>().mockResolvedValue(response(proposal));await generateAI(input,photo,['interior'],config,care);const body=JSON.parse(String(care.mock.calls[0][1]?.body));
  expect(body.input[0].content[0].text).toContain('do not leave care empty merely because cultivars, spaces or climates vary');expect(body.instructions).toContain('no reliable applicable guidance');expect(body.instructions).toContain('Never invent URLs');
+});
+
+
+it('identifica por nombre sin adjuntar imágenes y admite cuatro fotos solo seleccionadas explícitamente',async()=>{
+ const value={scientificName:'Dracaena trifasciata',commonName:'Lengua de suegra',uncertainty:'Confirmar',alternatives:[{scientificName:'Dracaena angolensis',commonName:'Sansevieria cilíndrica',uncertainty:'Nombre ambiguo'}]};
+ const transport=vi.fn<typeof fetch>().mockResolvedValue(response(value));
+ const result=await generateAI({...input,kind:'identify',inputMode:'name'},photo,[],config,transport);
+ expect(result.proposal).toEqual(value);let request=JSON.parse(String(transport.mock.calls[0][1]?.body));
+ expect(request.input[0].content.filter((item:{type:string})=>item.type==='input_image')).toHaveLength(0);expect(request.input[0].content[0].text).toContain('No photographs were provided');
+ const multiple=vi.fn<typeof fetch>().mockResolvedValue(response(value));await generateAI({...input,kind:'identify',inputMode:'photos'},[photo,photo,photo,photo],[],config,multiple);request=JSON.parse(String(multiple.mock.calls[0][1]?.body));
+ expect(request.input[0].content.filter((item:{type:string})=>item.type==='input_image')).toHaveLength(4);
+});
+it('rechaza falta o exceso de fotos antes de consumir IA y el contenido acepta nombre confirmado sin foto',async()=>{
+ for(const candidate of [{kind:'identify' as const,inputMode:'photos' as const,images:null},{kind:'identify' as const,inputMode:'photos' as const,images:[photo,photo,photo,photo,photo]},{kind:'enhance' as const,inputMode:'photos' as const,images:[photo,photo]}]){
+  const transport=vi.fn();await expect(generateAI({...input,kind:candidate.kind,inputMode:candidate.inputMode},candidate.images,[],config,transport)).rejects.toThrow();expect(transport).not.toHaveBeenCalled();
+ }
+ const transport=vi.fn<typeof fetch>().mockResolvedValue(response({...proposal,sources:[]}));const result=await generateAI({...input,inputMode:'name'},null,['interior'],config,transport);expect(result.proposal).toMatchObject({sources:[]});expect(transport).toHaveBeenCalledOnce();
 });

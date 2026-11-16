@@ -52,7 +52,7 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
  const secret = JSON.parse(gcloud(['secrets', 'versions', 'describe', 'latest', '--secret=OPENAI_API_KEY', '--format=json']));
  if (secret.state !== 'ENABLED') throw new Error('OPENAI_API_KEY necesita una versión habilitada en Secret Manager. No se leyó el contenido del secreto.');
  const functions = json<{ id: string; region: string; platform: string; codebase?: string; labels?: Record<string, string> }[]>(['functions:list']);
- for (const fn of functions.filter(item => ['adminCommand', 'processAI'].includes(item.id))) {
+ for (const fn of functions.filter(item => ['adminCommand', 'processAI', 'getPublicLoadingSettings'].includes(item.id))) {
   if (fn.region !== 'us-central1' || fn.platform !== 'gcfv2' || (fn.codebase ?? fn.labels?.['deployment-codebase'] ?? 'default') !== 'catalog') throw new Error('Hay una función con el mismo nombre en otra región, generación o codebase. Revisar la migración; no se forzará su reemplazo.');
  }
  log('Ejecutando lint, tipos, pruebas, catálogo y compilaciones…');
@@ -98,6 +98,9 @@ export async function deployOnline({ root, raw, ai = {}, ambient = process.env, 
   log('Publicando la función administrativa con IA habilitada…');
   firebase(['deploy', '--only', 'functions:catalog:adminCommand', '--config', configPath]);
   steps.push('backend'); record();
+  log('Publicando la configuración pública de carga…');
+  firebase(['deploy', '--only', 'functions:catalog:getPublicLoadingSettings', '--config', configPath]);
+  steps.push('public-loading'); record();
   log('Publicando Hosting después del backend completo…');
   firebase(['deploy', '--only', 'hosting', '--config', configPath]);
   steps.push('hosting'); record();

@@ -2,7 +2,7 @@
 
 Implementación local sobre la versión de la Mac, conservando las cuatro plantas (incluida Sansevieria), favoritos, WhatsApp `+506 71160290`, fotos y crédito Vision Mind. Ningún servicio productivo se configura ni se publica al ejecutar las pruebas.
 
-La guía del [flujo de siete pasos e instrucciones por generación](ADMIN-WORKFLOW.md) describe navegación, recuperación, revisión de propuestas y pruebas.
+La guía del [editor de tres secciones](EDITOR-SECTIONS.md) describe navegación, recuperación y publicación. Las instrucciones y propuestas revisables están en [IA contextual](AI-CONTEXTUAL.md); el historial anterior permanece en [ADMIN-WORKFLOW.md](ADMIN-WORKFLOW.md).
 
 ## Uso local
 
@@ -33,7 +33,7 @@ Sin `VITE_FIREBASE_MODE` el sitio usa el JSON original y muestra administración
 5. Revisar datos y fotografía; publicar crea una proyección pública sin notas, originales, movimientos ni roles. La publicación de un original genera una copia pública separada.
 6. Archivar conserva la ficha pública y sus cuidados en la misma URL, con aviso de archivo y fuera del listado. Restaurar crea un borrador; se debe volver a revisar/publicar.
 
-El borrador en edición se recupera desde una copia local por UID, con caducidad de siete días. Si localStorage falla se avisa; el guardado al servidor continúa. Cerrar sesión elimina la copia local de ese usuario. Cambiar de ficha con texto sin guardar exige elegir entre volver o descartar. El servidor rechaza revisiones antiguas para evitar pisar cambios de otra persona. Ante conflicto, conservar el texto y recargar la ficha para reconciliarlo manualmente.
+El borrador en edición se recupera desde una copia local por UID, con caducidad de siete días. Si localStorage falla se avisa; el guardado al servidor continúa. Cerrar sesión elimina la copia local de ese usuario. Cambiar de ficha con texto o inventario pendiente exige elegir entre volver o descartar. Guardar borrador no registra el inventario. El servidor rechaza revisiones antiguas para evitar pisar cambios de otra persona. Ante conflicto, conservar el texto y recargar la ficha para reconciliarlo manualmente.
 
 ## Inventario y etiquetas
 
@@ -61,7 +61,7 @@ Todos los writes de Firestore desde clientes están prohibidos. `adminCommand` v
 
 ## IA opcional
 
-Identificación y contenido usan Responses API; las propuestas de cuidados requieren nombre confirmado por una persona y fuentes presentes en los resultados/citas de la búsqueda. Se validan categorías existentes, fecha y estructura; campos de stock, precio o publicación se rechazan. La revisión acepta campos en el borrador solo si la versión sigue vigente. No aplica automáticamente nuevas propuestas sobre texto humano.
+Identificación y contenido usan Responses API; las propuestas de cuidados requieren nombre confirmado por una persona. Una fuente solo se marca verificada si su URL aparece en resultados/citas del proveedor; las referencias sin evidencia se conservan como texto sin verificar. Se validan categorías existentes y estructura; campos de stock, precio o publicación se rechazan. La revisión acepta campos en el borrador solo si la versión sigue vigente. No aplica automáticamente nuevas propuestas sobre texto humano.
 
 La mejora opcional usa Images Edits con el original privado, instrucciones para preservar características reales y una única imagen de salida. Original y propuesta se muestran separados y la selección es explícita. El modelo puede alterar detalles: la comparación humana es obligatoria antes de elegir/publicar; el código no garantiza equivalencia botánica o visual por sí mismo.
 

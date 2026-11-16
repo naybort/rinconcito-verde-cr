@@ -1,13 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { WateringLoader, loadingMessage } from './WateringLoader';
+import { selectLoadingTip, usePublicLoadingSettings } from './publicLoadingConfig';
+import type { PublicLoadingSettings } from '../../../functions/src/loadingSettings';
 
 export const MINIMUM_LOADING_MS = 3000;
 type BeginLoading = (message: string) => () => void;
 const LoadingContext = createContext<BeginLoading | null>(null);
 
 /** Children keep mounting/fetching while hidden. Consecutive loading phases share one clock. */
-export function PageLoadingBoundary({ children }: { children: ReactNode }) {
+export function PageLoadingBoundary({ children, audience = 'private' }: { children: ReactNode; audience?: 'private' | 'public' }) {
  const [visible, setVisible] = useState(true);
+ const [episode, setEpisode] = useState(0);
+ const publicSettings = usePublicLoadingSettings(audience === 'public');
  const [message, setMessage] = useState(loadingMessage);
  const state = useRef({ pending: new Set<symbol>(), visible: true, until: Date.now() + MINIMUM_LOADING_MS, timer: undefined as ReturnType<typeof setTimeout> | undefined });
  const settle = useCallback(() => {
@@ -23,7 +27,7 @@ export function PageLoadingBoundary({ children }: { children: ReactNode }) {
   const current = state.current;
   clearTimeout(current.timer);
   if (!current.visible) {
-   current.visible = true; current.until = Date.now() + MINIMUM_LOADING_MS; setVisible(true);
+   current.visible = true; current.until = Date.now() + MINIMUM_LOADING_MS; setVisible(true); setEpisode(value => value + 1);
   }
   setMessage(label);
   const token = Symbol(); current.pending.add(token);
@@ -36,7 +40,7 @@ export function PageLoadingBoundary({ children }: { children: ReactNode }) {
  }, [settle]);
  return <LoadingContext.Provider value={begin}>
   <div hidden={visible}>{children}</div>
-  {visible && <WateringLoader message={message}/>}
+  {visible && (audience === 'public' && publicSettings ? <PublicLoadingView key={episode} settings={publicSettings} message={message}/> : <WateringLoader message={message}/>)}
  </LoadingContext.Provider>;
 }
 
@@ -45,4 +49,9 @@ export function PageLoading({ message = loadingMessage }: { message?: string }) 
  const begin = useContext(LoadingContext);
  useLayoutEffect(() => begin?.(message), [begin, message]);
  return begin ? null : <WateringLoader message={message}/>;
+}
+
+function PublicLoadingView({ settings, message }: { settings: PublicLoadingSettings; message: string }) {
+ const [tip] = useState(() => selectLoadingTip(settings));
+ return <WateringLoader title={settings.title} subtitle={settings.subtitle} animation={settings.animation} tip={tip} message={message}/>;
 }

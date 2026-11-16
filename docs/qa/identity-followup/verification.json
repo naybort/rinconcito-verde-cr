@@ -1,0 +1,47 @@
+{
+  "method": "Inkscape rasterization of full SVG at 300 dpi, then jsQR decoding of full PNG without cropping",
+  "results": [
+    {
+      "name": "house-normal",
+      "widthMm": 60,
+      "heightMm": 80,
+      "qrMm": 30,
+      "dpi": 300,
+      "pixelWidth": 709,
+      "pixelHeight": 945,
+      "quietZoneModules": 4,
+      "expected": "https://rinconcito-verde-cr.web.app/#/plantas/sansevieria",
+      "decoded": "https://rinconcito-verde-cr.web.app/#/plantas/sansevieria",
+      "pass": true,
+      "pngSha256": "57dd72345088d6c9b4d3d107d9054e6371e5b49302a8f573aeb0c0ce43555b67"
+    },
+    {
+      "name": "house-long",
+      "widthMm": 60,
+      "heightMm": 80,
+      "qrMm": 30,
+      "dpi": 300,
+      "pixelWidth": 709,
+      "pixelHeight": 945,
+      "quietZoneModules": 4,
+      "expected": "https://rinconcito-verde-cr.web.app/#/plantas/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decoded": "https://rinconcito-verde-cr.web.app/#/plantas/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pass": true,
+      "pngSha256": "94c1229c9f035b7ef499a54c0dd0cf50dcfee1377a0eeaf1374a00f9946e3cda"
+    },
+    {
+      "name": "compact-long",
+      "widthMm": 50,
+      "heightMm": 45,
+      "qrMm": 26,
+      "dpi": 300,
+      "pixelWidth": 591,
+      "pixelHeight": 531,
+      "quietZoneModules": 4,
+      "expected": "https://rinconcito-verde-cr.web.app/#/plantas/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decoded": "https://rinconcito-verde-cr.web.app/#/plantas/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pass": true,
+      "pngSha256": "5e1fb5fbb3ad3e9451281229be045c62e51bef5723b861217e711ea8ffeed00c"
+    }
+  ]
+}

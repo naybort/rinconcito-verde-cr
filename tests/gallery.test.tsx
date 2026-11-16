@@ -27,7 +27,7 @@ describe('galería por ficha',()=>{
  });
  it('navega por botones y teclado, recupera una imagen fallida al cambiar de foto',async()=>{
   const plant={...plants.plants[0],images:[{src:'/images/monstera.png',alt:'Portada de prueba'},{src:'/images/calathea.png',alt:'Detalle de prueba'}]};render(<PlantGallery plant={plant}/>);
-  expect(screen.getByRole('img',{name:'Portada de prueba'})).toBeInTheDocument();await userEvent.click(screen.getByRole('button',{name:'Foto siguiente'}));expect(screen.getByRole('img',{name:'Detalle de prueba'})).toBeInTheDocument();
+  expect(screen.getByRole('img',{name:'Portada de prueba'})).toBeInTheDocument();await userEvent.click(screen.getByRole('button',{name:'Imagen siguiente'}));expect(screen.getByRole('img',{name:'Detalle de prueba'})).toBeInTheDocument();
   fireEvent.error(screen.getByRole('img',{name:'Detalle de prueba'}));expect(screen.getByText('Imagen no disponible')).toBeInTheDocument();fireEvent.keyDown(screen.getByRole('group'),{key:'ArrowLeft'});expect(screen.getByRole('img',{name:'Portada de prueba'})).toBeInTheDocument();expect(screen.queryByText('Imagen no disponible')).not.toBeInTheDocument();
  });
 });
