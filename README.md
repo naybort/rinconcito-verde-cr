@@ -2,6 +2,10 @@
 
 Catálogo de vivero con cuatro fichas de prueba conservadas, administración privada, inventario, etiquetas QR y asistencia IA opcional. Repositorio: https://github.com/naybort/rinconcito-verde-cr. Hosting existente: https://rinconcito-verde-cr.web.app; consultar el estado de la entrega y preparación productiva en [docs/DEPLOY-ONLINE.md](docs/DEPLOY-ONLINE.md).
 
+## Entrega de desarrollo: cinco frentes
+
+El registro ahora usa **Planta de catálogo → Inventario → Revisión final**. Incluye IA contextual por solicitud, maceta y precio por presentación con publicación voluntaria, carruseles accesibles y configuración de la bienvenida pública. Guía y evidencia de esta entrega local: [docs/FIVE-FRONTS-DELIVERY.md](docs/FIVE-FRONTS-DELIVERY.md). Esta entrega no se ha publicado ni desplegado.
+
 ## Ejecutar
 ```bash
 npm run dev -- --host 127.0.0.1
@@ -42,7 +46,7 @@ npm run deploy:online -- --check
 npm run release:online
 ```
 
-`configure:online` registra o reutiliza la app web y guarda su configuración pública. `release:online` valida requisitos y pruebas, publica reglas, procesador IA, admin y Hosting, verifica HTTPS y abre Chrome para probar las tres operaciones reales de IA en un borrador privado. Requiere la preparación productiva inicial, Blaze, secreto OpenAI y login manual de un administrador. No modifica los emuladores. Para probar otra cuenta sin nuevas llamadas IA: `npm run verify:online -- --access-only`.
+`configure:online` registra o reutiliza la app web y guarda su configuración pública. `release:online` valida requisitos y pruebas, publica reglas, procesador IA, admin, configuración pública de carga y Hosting, verifica HTTPS y abre Chrome para probar las tres operaciones reales de IA en un borrador privado. Requiere la preparación productiva inicial, Blaze, secreto OpenAI y login manual de un administrador. No modifica los emuladores. Para probar otra cuenta sin nuevas llamadas IA: `npm run verify:online -- --access-only`.
 
 El comando anterior `npm run deploy -- --project rinconcito-verde-cr` publica exclusivamente Hosting; su antecedente está en [docs/DEVOPS.md](docs/DEVOPS.md).
 

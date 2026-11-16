@@ -75,14 +75,14 @@ it('publica reglas y procesador antes del admin y Hosting, y verifica ambas URL 
  const context = runtime(); await deployOnline(context);
  expect(context.calls.some(command => command.args.includes('appcheck:apps:list'))).toBe(false);
  const deploys = context.calls.filter(c => c.args.includes('deploy'));
- expect(deploys.map(c => c.args[c.args.indexOf('--only') + 1])).toEqual(['firestore,storage', 'functions:catalog:processAI', 'functions:catalog:adminCommand', 'hosting']);
+ expect(deploys.map(c => c.args[c.args.indexOf('--only') + 1])).toEqual(['firestore,storage', 'functions:catalog:processAI', 'functions:catalog:adminCommand', 'functions:catalog:getPublicLoadingSettings', 'hosting']);
  for (const command of deploys) {
   expect(command.args).toContain('--non-interactive');
   expect(command.args.includes('--force')).toBe(command.args.includes('functions:catalog:processAI'));
   expect(command.args[command.args.indexOf('--project') + 1]).toBe('rinconcito-verde-cr');
  }
  expect(context.fetcher).toHaveBeenCalledWith(productionOrigin + '/admin', expect.any(Object));
- expect(JSON.parse(readFileSync(join(root, '.firebase/deploy-online-result.json'), 'utf8'))).toMatchObject({ status: 'deployed', steps: ['rules', 'ai-worker', 'backend', 'hosting', 'https-version'] });
+ expect(JSON.parse(readFileSync(join(root, '.firebase/deploy-online-result.json'), 'utf8'))).toMatchObject({ status: 'deployed', steps: ['rules', 'ai-worker', 'backend', 'public-loading', 'hosting', 'https-version'] });
  expect(readdirSync(join(root, '.firebase'))).toEqual(['deploy-online-result.json']);
 });
 it('el modo check verifica sin publicar ni crear preparación de Functions', async () => {
@@ -109,7 +109,7 @@ it('no sustituye el catálogo si falta la Sansevieria pública', async () => {
 });
 it('no informa éxito si la verificación HTTPS falla después de publicar', async () => {
  const context = runtime({ smokeFailure: true }); await expect(deployOnline(context)).rejects.toThrow('HTTPS');
- expect(JSON.parse(readFileSync(join(root, '.firebase/deploy-online-result.json'), 'utf8'))).toMatchObject({ status: 'incomplete', steps: ['rules', 'ai-worker', 'backend', 'hosting'] });
+ expect(JSON.parse(readFileSync(join(root, '.firebase/deploy-online-result.json'), 'utf8'))).toMatchObject({ status: 'incomplete', steps: ['rules', 'ai-worker', 'backend', 'public-loading', 'hosting'] });
 });
 it.each<Record<string, string>>([
  { VITE_FIREBASE_MODE: 'emulator' }, { VITE_FIREBASE_PROJECT_ID: 'other-project' },
@@ -222,4 +222,12 @@ it('la pausa conserva las comprobaciones IAM de fotos privadas', async () => {
 it('el backend exige App Check por defecto y ante configuraciones ambiguas', () => {
  expect(appCheckEnforced()).toBe(true); expect(appCheckEnforced('true')).toBe(true); expect(appCheckEnforced('false')).toBe(false);
  for (const value of ['', 'FALSE', '0', 'off', 'false ']) expect(() => appCheckEnforced(value)).toThrow();
+});
+
+// Public copy must be ready before shipping the loader that requests it.
+it('un fallo en configuración pública bloquea Hosting y conserva los pasos ya completos', async () => {
+ const context=runtime({fail:'functions:catalog:getPublicLoadingSettings'});
+ await expect(deployOnline(context)).rejects.toThrow('simulated');
+ expect(context.calls.filter(command=>command.args.includes('deploy'))).toHaveLength(4);
+ expect(JSON.parse(readFileSync(join(root,'.firebase/deploy-online-result.json'),'utf8'))).toMatchObject({status:'incomplete',steps:['rules','ai-worker','backend']});
 });

@@ -83,7 +83,7 @@ Abrí `http://127.0.0.1:5173/admin`. Para los datos ficticios del seed: `admin@e
 
 1. Agregar planta → nombre orientativo → tomar/subir foto → **Guardar borrador**.
 2. **Sugerir identificación**. Esperar a que el trabajo aparezca como propuesta lista. Revisar incertidumbre y confirmar/corregir la identificación en el campo humano.
-3. **Proponer contenido con fuentes**. Revisar fuentes y campos. Aceptar la propuesta únicamente si es correcta; entonces se copia al borrador. Guardar antes de solicitar otro paso IA.
+3. **Proponer contenido con fuentes**. Revisar cada campo y marcar qué aplicar. Los campos con texto existente requieren selección explícita; el resto se conserva. Las referencias sin evidencia quedan como texto sin verificar. Guardar antes de solicitar otra operación IA. Ver [AI-CONTEXTUAL.md](AI-CONTEXTUAL.md).
 4. Opcional: **Proponer mejora de fotografía**. Comparar original y propuesta; conservar el original si cambió alguna hoja, flor, tamaño, daño o condición comercial. Elegir foto explícitamente y guardar.
 5. Completar datos manuales → enviar a revisión → revisar → publicar. En este entorno, publicar actualiza **solo el catálogo emulado**; el Hosting real no cambia.
 

@@ -1,18 +1,19 @@
 import { Box, Stack, Typography } from '@mui/material';
 import { identity } from '../brand/identity';
 import './watering-loader.css';
+import type { LoadingAnimation } from '../../../functions/src/loadingSettings';
 
 export const loadingMessage = 'Preparando tu rincón verde…';
 
 /** A lightweight illustration, separate from the existing brand icon. */
-export function WateringLoader({ message = loadingMessage }: { message?: string }) {
+export function WateringLoader({ message = loadingMessage, title = 'Un poquito de agua…', subtitle, tip, animation = 'watering' }: { message?: string; title?: string; subtitle?: string; tip?: string; animation?: LoadingAnimation }) {
  return <Box component="section" className="rv-loading-screen" aria-label="Cargando Rinconcito Verde" aria-busy="true" sx={{ bgcolor: identity.paper, color: identity.ink }}>
   <Stack direction="row" sx={{ justifyContent: 'center', alignItems: 'center', gap: 1.25 }}>
    <Box component="img" src={identity.icon} alt="" sx={{ width: 36, height: 36, objectFit: 'contain' }}/>
    <Typography sx={{ fontSize: { xs: 16, sm: 18 }, fontWeight: 700 }}>{identity.name}</Typography>
   </Stack>
   <Box sx={{ alignSelf: 'center', textAlign: 'center', width: '100%', maxWidth: 440, mx: 'auto', py: 3 }}>
-   <svg className="rv-watering-scene" viewBox="0 0 360 270" aria-hidden="true" focusable="false">
+   <svg className={`rv-watering-scene rv-loading-animation-${animation}`} viewBox="0 0 360 270" aria-hidden="true" focusable="false">
     <path d="M66 198C38 149 61 64 133 40c71-24 151 18 169 81s-15 102-75 110C158 241 99 232 66 198Z" fill="#e8eee6"/>
     <circle cx="284" cy="68" r="5" fill="#ccd8d0"/><circle cx="57" cy="175" r="3" fill="#ccd8d0"/>
     <ellipse cx="187" cy="239" rx="111" ry="8" fill="#dce5da"/>
@@ -48,8 +49,10 @@ export function WateringLoader({ message = loadingMessage }: { message?: string 
     <path d="M101 213h47l-6 23c-10 5-25 5-35 0Z" fill="#f5f4eb" stroke="#b7c7b8" strokeWidth="2"/>
     <rect x="98" y="208" width="53" height="9" rx="3" fill="#ccd8d0"/>
    </svg>
-   <Typography component="p" sx={{ fontSize: { xs: 25, sm: 30 }, fontWeight: 700, letterSpacing: '-.025em', mb: 1 }}>Un poquito de agua…</Typography>
+   <Typography component="p" sx={{ fontSize: { xs: 25, sm: 30 }, fontWeight: 700, letterSpacing: '-.025em', overflowWrap: 'anywhere', mb: 1 }}>{title}</Typography>
+   {subtitle && <Typography sx={{ color: 'text.secondary', fontSize: 16, lineHeight: 1.6, overflowWrap: 'anywhere', mb: 1 }}>{subtitle}</Typography>}
    <Typography role="status" aria-live="polite" aria-atomic="true" sx={{ color: 'text.secondary', fontSize: 15, lineHeight: 1.7 }}>{message}</Typography>
+   {tip && <Box component="aside" aria-label="Consejo del vivero" sx={{ mt: 3, px: 2.5, py: 2, bgcolor: '#e8eee6', borderRadius: 3 }}><Typography variant="body2" sx={{ lineHeight: 1.7, overflowWrap: 'anywhere' }}>{tip}</Typography></Box>}
   </Box>
   <Typography component="p" sx={{ textAlign: 'center', fontSize: 12, color: 'text.secondary', letterSpacing: '.025em' }}>Powered by <Box component="span" sx={{ fontWeight: 700 }}>Vision Mind</Box></Typography>
  </Box>;

@@ -20,3 +20,6 @@
  .rv-watering-scene * { animation: none !important; }
  .rv-water-drop { opacity: .8; }
 }
+
+.rv-loading-animation-leaves .rv-watering-can, .rv-loading-animation-leaves .rv-water-drop { display: none; }
+.rv-loading-animation-none * { animation: none !important; }

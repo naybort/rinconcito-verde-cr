@@ -1,3 +1,11 @@
+# Flujo administrativo: guía vigente e historial
+
+**La entrega actual sustituye los siete pasos por tres secciones:** Planta de catálogo, Inventario y Revisión final. La asistencia está disponible en la ficha y se solicita manualmente; desaparece el paso «Manual o IA». Consultá [EDITOR-SECTIONS.md](EDITOR-SECTIONS.md), [AI-CONTEXTUAL.md](AI-CONTEXTUAL.md) y [FIVE-FRONTS-DELIVERY.md](FIVE-FRONTS-DELIVERY.md) para comportamiento y pruebas actuales.
+
+El contenido siguiente es el historial anterior a esta entrega: sus nombres de pasos, capturas y resultados no certifican la nueva interfaz.
+
+---
+
 # Alta asistida: instrucciones y siete pasos
 
 El administrador conserva el flujo manual y las siete actividades del plan de etapa 2. No es necesario completar cada paso ni usar IA para avanzar:

@@ -11,6 +11,8 @@ import type { Catalog } from '../features/catalog/schema';
 import { usePublicCatalog } from '../features/catalog/usePublicCatalog';
 const Admin = lazy(() => import('../features/admin/Admin'));
 import { PlantCard } from '../features/catalog/PlantCard';
+import { PlantPrices } from '../features/catalog/PlantPrices';
+import { PlantSources } from '../features/catalog/PlantSources';
 import { PlantGallery } from '../features/catalog/PlantGallery';
 import { useFavorites } from '../features/favorites/useFavorites';
 import { buildMessage, buildWhatsAppLink } from '../features/contact/whatsapp';
@@ -53,9 +55,9 @@ function CatalogView({catalog}:{catalog:Catalog}) {
  const titleProps = { ref: heading, tabIndex: -1 };
  return <>
   <Box component="a" href="#contenido" sx={{ position: 'fixed', top: -100, left: 16, zIndex: 2000, bgcolor: 'white', p: 2, '&:focus': { top: 8 } }} onClick={event => { event.preventDefault(); heading.current?.focus(); }}>Saltar al contenido</Box>
-  <Box component="header" sx={{ bgcolor: 'background.default', borderBottom: '1px solid #e7ece8' }}>
+  <Box component="header" sx={{ bgcolor: 'background.default', borderBottom: '1px solid #e7ece8', boxShadow: '0 3px 18px rgba(27,67,50,.035)' }}>
    <Container maxWidth="lg" sx={{ py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-    <Typography component="a" href="#/" sx={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, fontSize: { xs: 18, md: 26 }, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}><Box component="img" src="/rinconcito-icon.png" alt="" sx={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />{business.name}</Typography>
+    <Typography component="a" href="#/" sx={{ fontFamily: '"DM Sans", sans-serif', fontWeight: 700, fontSize: { xs: 18, md: 26 }, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}><Box component="img" src="/rinconcito-house.png" alt="" sx={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />{business.name}</Typography>
     <AdminShortcut/>
    </Container>
   </Box>
@@ -71,6 +73,7 @@ function CatalogView({catalog}:{catalog:Catalog}) {
 
      {plant.available===false&&<Alert severity="info" sx={{mt:2}}>Esta ficha está archivada. Conservamos sus cuidados para tu planta.</Alert>}
      <Typography color="text.secondary" sx={{ mt: 3, lineHeight: '26px', maxWidth: 650 }}>{plant.description || 'Consultá al vivero para conocer más sobre esta planta.'}</Typography>
+     <PlantPrices priceOptions={plant.priceOptions}/>
      <Box component="section" aria-labelledby="cuidados-heading" sx={{ mt: 4 }}>
       <Typography id="cuidados-heading" component="h2" variant="h3">Cómo cuidar tu planta</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>Estos cuidados pueden variar según tu espacio y clima. Consultanos si tenés dudas.</Typography>
@@ -79,7 +82,7 @@ function CatalogView({catalog}:{catalog:Catalog}) {
       </Box> : <Typography color="text.secondary">Consultanos por WhatsApp para conocer sus cuidados.</Typography>}
      </Box>
      {plant.warnings&&<Alert severity="warning" sx={{mt:2}}>{plant.warnings}</Alert>}
-     {plant.sources?.length ? <Box sx={{mt:2}}><Typography component="h2" variant="h3">Fuentes de cuidados</Typography>{plant.sources.map(source=><Typography key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> · {source.accessedAt}</Typography>)}</Box>:null}
+     <PlantSources sources={plant.sources}/>
      <Button variant="contained" fullWidth aria-pressed={favorites.ids.includes(plant.id)} onClick={() => favorites.toggle(plant.id)} startIcon={<PlantIcon kind="heart" filled={favorites.ids.includes(plant.id)} />} sx={{ mt: 3, py: 1.5 }}>
       {favorites.ids.includes(plant.id) ? 'Quitar de favoritos' : 'Añadir a favoritos'}
      </Button>

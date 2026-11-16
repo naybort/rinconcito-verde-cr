@@ -5,26 +5,31 @@ import { setPersistence, browserSessionPersistence, signInWithEmailAndPassword, 
 import { command, firebase, firebaseMode } from '../../lib/firebase';
 import { type PlantRecord } from '../../../functions/src/domain';
 import { recoverySchema } from './recovery';
+import { hasPendingEditing } from './pendingEditing';
 import { PlantList } from './PlantList';
 import { useAdmin } from './state';
 import { PlantEditor, toEditing, type Editing } from './PlantEditor';
 import { Inventory } from './Inventory';
 import { Labels } from './Labels';
 import { Taxonomies } from './Taxonomies';
+import { LoadingSettings } from './LoadingSettings';
 export default function Admin(){
  const state=useAdmin();const [email,setEmail]=useState('');const [password,setPassword]=useState('');const [error,setError]=useState('');const [notice,setNotice]=useState('');const [busy,setBusy]=useState(false);const lock=useRef(false);const pending=useRef<{key:string;id:string}|null>(null);
+ const [moreSection,setMoreSection]=useState<'taxonomies'|'loading'>('taxonomies');
  const [view,setView]=useState('Inicio');const [editing,setEditing]=useState<Editing|null>(null);const [recovery,setRecovery]=useState<Editing|null>(null);const [replacement,setReplacement]=useState<PlantRecord|'new'|null>(null);
+ const pendingEditing=hasPendingEditing(editing);
  const uid=state.session?.user.uid;const draftKey=uid?`rv:admin-draft:v1:${uid}`:'';
  useEffect(()=>{if(!draftKey)return;try{const raw=localStorage.getItem(draftKey);if(raw){const parsed=recoverySchema.parse(JSON.parse(raw));if(Date.now()-parsed.savedAt<7*86400000)setRecovery(parsed);}}catch{setError('No se pudo recuperar el borrador local. Los borradores guardados en el servidor siguen disponibles.');}},[draftKey]);
  useEffect(()=>{if(!editing||!draftKey)return;try{localStorage.setItem(draftKey,JSON.stringify({...editing,savedAt:Date.now()}));}catch{setError('Este navegador no permite recuperar borradores. Guardá en el servidor antes de salir.');}},[editing,draftKey]);
- useEffect(()=>{if(!editing?.dirty)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[editing?.dirty]);
+ useEffect(()=>{if(!pendingEditing)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[pendingEditing]);
  async function run(action:string,payload:unknown){
+  if(action==='getLoadingSettings'){try{return await command(action,payload,crypto.randomUUID());}catch(e){setError(e instanceof Error?e.message:'No se pudo leer la configuración.');return;}}
   if(lock.current)return;lock.current=true;setBusy(true);setError('');setNotice('');
   const key=JSON.stringify({action,payload});if(pending.current?.key!==key)pending.current={key,id:crypto.randomUUID()};
-  try{const result=await command(action,payload,pending.current.id);pending.current=null;setNotice(action==='requestAI'?'Solicitud recibida. Revisá el resultado en su paso; podés seguir editando.':'Operación guardada.');return result;}catch(e){setError(e instanceof Error?e.message:'No se pudo completar la operación. El borrador se conserva.');}finally{window.setTimeout(()=>{lock.current=false;setBusy(false);},350);}
+  try{const result=await command(action,payload,pending.current.id);pending.current=null;setNotice(['requestAI','requestLoadingTips'].includes(action)?'Solicitud recibida. Revisá el resultado en su paso; podés seguir editando.':'Operación guardada.');return result;}catch(e){setError(e instanceof Error?e.message:'No se pudo completar la operación. El borrador se conserva.');}finally{window.setTimeout(()=>{lock.current=false;setBusy(false);},350);}
  }
  async function login(){if(lock.current||!firebase)return;lock.current=true;setBusy(true);setError('');try{await setPersistence(firebase.auth,browserSessionPersistence);await signInWithEmailAndPassword(firebase.auth,email,password);setPassword('');}catch{setError('No se pudo iniciar sesión. Revisá tus credenciales y conexión.');}finally{lock.current=false;setBusy(false);}}
- function edit(p?:PlantRecord){if(p&&editing?.draft.id===p.id){setView('Editar');return;}if(editing?.dirty){setReplacement(p??'new');return;}setEditing(toEditing(p));setView('Editar');}
+ function edit(p?:PlantRecord){if(p&&editing?.draft.id===p.id){setView('Editar');return;}if(pendingEditing){setReplacement(p??'new');return;}setEditing(toEditing(p));setView('Editar');}
  if(!firebase)return <Container maxWidth="sm" sx={{py:6}}><Typography component="h1" variant="h2">Administración privada</Typography><Alert severity="info" sx={{my:3}}>Administración pendiente de configuración. El catálogo público sigue disponible.</Alert><Button href="/">Volver al catálogo</Button></Container>;
  if(state.loading)return <PageLoading message="Verificando acceso…"/>;
  if(!state.session)return <Container maxWidth="sm" sx={{py:6}}><Paper variant="outlined" sx={{p:3}}><Stack component="form" spacing={3} onSubmit={e=>{e.preventDefault();void login();}}><Typography component="h1" variant="h2">Administración privada</Typography><Typography>Acceso solo para personas previamente autorizadas.</Typography>{(error||state.error)&&<Alert severity="error">{error||state.error}</Alert>}<TextField label="Correo" type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)}/><TextField label="Contraseña" type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)}/><Button variant="contained" type="submit" disabled={busy}>Iniciar sesión</Button><Button href="/">Volver al catálogo</Button></Stack></Paper></Container>;
@@ -38,6 +43,6 @@ export default function Admin(){
  {editing&&<Box sx={{display:view==='Editar'?'block':'none'}}><PlantEditor key={editing.draft.id} editing={editing} setEditing={setEditing} categories={state.categories} templates={state.careTemplates} jobs={state.jobs} uid={uid!} role={state.session.role} run={run} busy={busy} plants={state.plants} stocks={state.stocks} movements={state.movements} onLabels={()=>setView('Etiquetas')}/></Box>}
  {view==='Inventario'&&<Inventory plants={state.plants} stocks={state.stocks} movements={state.movements} run={run} busy={busy}/>}
  {view==='Etiquetas'&&<Labels plants={state.plants.filter(p=>p.publishedRevision!=null)}/>}
- {view==='Más'&&state.session.role==='admin'&&<Taxonomies categories={state.categories} templates={state.careTemplates} plants={state.plants} run={run} busy={busy}/>}
- </Stack><Dialog open={!!replacement} onClose={()=>setReplacement(null)}><DialogTitle>Conservar los cambios</DialogTitle><DialogContent>El borrador actual tiene cambios sin guardar. Guardalo antes de abrir otra ficha o descartá esos cambios.</DialogContent><DialogActions><Button onClick={()=>{setReplacement(null);setView('Editar');}}>Volver al borrador</Button><Button onClick={()=>{setEditing(toEditing(replacement==='new'?undefined:replacement!));setReplacement(null);setView('Editar');}}>Descartar y continuar</Button></DialogActions></Dialog></Container></Box>;
+ {view==='Más'&&state.session.role==='admin'&&<Stack spacing={2}><Stack direction="row" sx={{gap:1,flexWrap:'wrap'}}><Button aria-pressed={moreSection==='taxonomies'} variant={moreSection==='taxonomies'?'contained':'outlined'} onClick={()=>setMoreSection('taxonomies')}>Categorías y cuidados</Button><Button aria-pressed={moreSection==='loading'} variant={moreSection==='loading'?'contained':'outlined'} onClick={()=>setMoreSection('loading')}>Pantalla de carga pública</Button></Stack>{moreSection==='loading'?<LoadingSettings run={run} busy={busy} jobs={state.jobs}/>:<Taxonomies categories={state.categories} templates={state.careTemplates} plants={state.plants} run={run} busy={busy}/>}</Stack>}
+ </Stack><Dialog open={!!replacement} onClose={()=>setReplacement(null)}><DialogTitle>Conservar los cambios</DialogTitle><DialogContent>Hay cambios pendientes en la ficha o el inventario. Guardá la ficha y registrá el movimiento o la presentación antes de abrir otra, o descartá esos cambios. Guardar borrador no guarda el inventario.</DialogContent><DialogActions><Button onClick={()=>{setReplacement(null);setView('Editar');}}>Volver al borrador</Button><Button onClick={()=>{setEditing(toEditing(replacement==='new'?undefined:replacement!));setReplacement(null);setView('Editar');}}>Descartar y continuar</Button></DialogActions></Dialog></Container></Box>;
 }

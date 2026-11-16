@@ -4,10 +4,12 @@ import type { PlantRecord } from '../../../functions/src/domain';
 import { brandIconData, downloadBlob, loadImage } from '../../shared/brand/identity';
 import { PlantPicker } from './PlantPicker';
 import { CollectionPager, usePagedItems } from './collections';
-import { createLabelSvg, labelDataUrl, labelLimits } from './labelTemplate';
+import { createLabelSvg, labelDataUrl, labelFormats, labelLimits, type LabelVariant } from './labelTemplate';
 
 type Prepared = { id: string; name: string; svg: string; src: string };
 export function Labels({ plants }: { plants: PlantRecord[] }) {
+ const [variant, setVariant] = useState<LabelVariant>('compact');
+ const format = labelFormats[variant];
  const [query, setQuery] = useState('');
  const [selected, setSelected] = useState<string[]>([]);
  const [copies, setCopies] = useState('1');
@@ -17,17 +19,17 @@ export function Labels({ plants }: { plants: PlantRecord[] }) {
  const [error, setError] = useState('');
  const [retry, setRetry] = useState(0);
  const printable = useMemo(() => plants.filter(p => selected.includes(p.id)).map(({ id, name }) => ({ id, name })), [plants, selected]);
- const validSize = Number.isInteger(+width) && +width >= labelLimits.minWidth && +width <= labelLimits.maxWidth && Number.isInteger(+height) && +height >= labelLimits.minHeight && +height <= labelLimits.maxHeight;
+ const validSize = Number.isInteger(+width) && +width >= format.minWidth && +width <= labelLimits.maxWidth && Number.isInteger(+height) && +height >= format.minHeight && +height <= labelLimits.maxHeight;
  const validCopies = Number.isInteger(+copies) && +copies >= 1 && +copies <= labelLimits.maxCopies;
- const key = JSON.stringify({ printable, width, height, retry });
+ const key = JSON.stringify({ printable, width, height, variant, retry });
  useEffect(() => {
   let active = true;
   setError('');
   if (!validSize || !printable.length) return;
   void (async () => {
-   const icon = await brandIconData();
+   const icon = await brandIconData(variant);
    const labels = await Promise.all(printable.map(async plant => {
-    const svg = await createLabelSvg(plant, +width, +height, icon);
+    const svg = await createLabelSvg(plant, +width, +height, icon, variant);
     const src = labelDataUrl(svg);
     // Preload the entire self-contained SVG before allowing print or download.
     await loadImage(src);
@@ -36,7 +38,7 @@ export function Labels({ plants }: { plants: PlantRecord[] }) {
    if (active) setResult({ key, labels });
   })().catch(() => { if (active) setError('No se pudieron preparar las etiquetas. Revisá tu conexión y reintentá.'); });
   return () => { active = false; };
- }, [key, printable, width, height, validSize]);
+ }, [key, printable, width, height, validSize, variant]);
  const ready = validSize && validCopies && printable.length > 0 && result.key === key && !error;
  const labels = ready ? result.labels : [];
  const copiesToPrint = labels.flatMap(label => Array.from({ length: +copies }, (_, copy) => ({ ...label, key: `${label.id}-${copy}` })));
@@ -48,15 +50,19 @@ export function Labels({ plants }: { plants: PlantRecord[] }) {
   <Box className="no-print"><PlantPicker plants={plants} selected={selected.filter(id => plants.some(p => p.id === id))} onChange={ids => { setSelected(ids); preview.reset(); }} query={query} onQuery={setQuery} label="fichas para etiquetas"/></Box>
   {!plants.length && <Alert severity="info" className="no-print">Publicá una ficha para preparar sus etiquetas.</Alert>}
   <Stack className="no-print" direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 2, flexWrap: 'wrap' }}>
+   <TextField label="Diseño de etiqueta" select value={variant} slotProps={{ select: { native: true } }} sx={{ minWidth: 230 }} onChange={e => { const next = e.target.value as LabelVariant; setVariant(next); setWidth(String(labelFormats[next].width)); setHeight(String(labelFormats[next].height)); preview.reset(); }}>
+    {Object.entries(labelFormats).map(([value, item]) => <option key={value} value={value}>{item.name}</option>)}
+   </TextField>
    <TextField sx={{ minWidth: 150, flex: { sm: '1 1 150px' } }} label="Copias por ficha" type="number" value={copies} error={!validCopies} helperText="De 1 a 100" slotProps={{ htmlInput: { min: 1, max: 100, step: 1 } }} onChange={e => { setCopies(e.target.value); preview.reset(); }}/>
-   <TextField sx={{ minWidth: 150, flex: { sm: '1 1 150px' } }} label="Ancho (mm)" type="number" value={width} error={!validSize} helperText="De 50 a 100 mm" slotProps={{ htmlInput: { min: 50, max: 100, step: 1 } }} onChange={e => setWidth(e.target.value)}/>
-   <TextField sx={{ minWidth: 150, flex: { sm: '1 1 150px' } }} label="Alto (mm)" type="number" value={height} error={!validSize} helperText="De 45 a 150 mm" slotProps={{ htmlInput: { min: 45, max: 150, step: 1 } }} onChange={e => setHeight(e.target.value)}/>
+   <TextField sx={{ minWidth: 150, flex: { sm: '1 1 150px' } }} label="Ancho (mm)" type="number" value={width} error={!validSize} helperText={`De ${format.minWidth} a 100 mm`} slotProps={{ htmlInput: { min: format.minWidth, max: 100, step: 1 } }} onChange={e => setWidth(e.target.value)}/>
+   <TextField sx={{ minWidth: 150, flex: { sm: '1 1 150px' } }} label="Alto (mm)" type="number" value={height} error={!validSize} helperText={`De ${format.minHeight} a 150 mm`} slotProps={{ htmlInput: { min: format.minHeight, max: 150, step: 1 } }} onChange={e => setHeight(e.target.value)}/>
    <Button variant="contained" disabled={!ready} onClick={() => window.print()}>Imprimir / guardar PDF</Button>
   </Stack>
+  {variant === 'house' && <Alert severity="info" className="no-print">Casita y contacto incluye ubicación, WhatsApp, Facebook y entregas. Tamaño recomendado: 80 × 120 mm; mínimo: 70 × 120 mm para conservar la legibilidad. El QR abre la ficha de cada planta.</Alert>}
   <Typography className="no-print" variant="body2" color="text.secondary">Imprimí al 100 % / tamaño real, sin encabezados ni pies de página. Probá una etiqueta con tu teléfono antes de imprimir un lote. El QR incluye un borde blanco que debe quedar libre.</Typography>
   {error && <Alert className="no-print" severity="error" action={<Button onClick={() => setRetry(n => n + 1)}>Reintentar</Button>}>{error}</Alert>}
   {!error && printable.length > 0 && validSize && validCopies && !ready && <Typography role="status" className="no-print">Preparando etiquetas…</Typography>}
-  <Stack className="no-print" direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>{labels.filter(label => visibleLabels.has(label.id)).map(label => <Button key={label.id} variant="outlined" sx={{ overflowWrap: 'anywhere', maxWidth: '100%' }} onClick={() => downloadBlob(new Blob([label.svg], { type: 'image/svg+xml' }), `etiqueta-${label.id}.svg`)}>Descargar etiqueta de {label.name} · {label.id}</Button>)}</Stack>
+  <Stack className="no-print" direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>{labels.filter(label => visibleLabels.has(label.id)).map(label => <Button key={label.id} variant="outlined" sx={{ overflowWrap: 'anywhere', maxWidth: '100%' }} onClick={() => downloadBlob(new Blob([label.svg], { type: 'image/svg+xml' }), `etiqueta-${label.id}${variant === 'house' ? '-casita' : ''}.svg`)}>Descargar etiqueta de {label.name} · {label.id}</Button>)}</Stack>
   {ready && <Box className="no-print"><Typography variant="body2">{copiesToPrint.length} etiquetas para imprimir. Se imprimen todas las páginas de la vista previa.</Typography><CollectionPager paging={preview} label="vista previa de etiquetas"/></Box>}
   <Box className="labels" aria-label="Vista previa de etiquetas" sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '2mm', maxWidth: '100%', overflowX: 'auto' }}>
    {copiesToPrint.map((label, index) => <Box key={label.key} className="plant-label" sx={{ display: index >= preview.page * preview.size && index < (preview.page + 1) * preview.size ? 'block' : 'none', width: `${width}mm`, height: `${height}mm`, flexShrink: 0, breakInside: 'avoid' }}>

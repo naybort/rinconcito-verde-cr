@@ -17,6 +17,8 @@ const run=(program,args,env=childEnv)=>new Promise((resolve,reject)=>{
  });
 });
 const quote=value=>"'"+value.replaceAll("'","'\\''")+"'";
+const direct=process.argv.includes('--direct');
+if(direct&&process.argv.includes('--ui'))throw new Error('--direct prueba handlers y no es compatible con la suite del navegador.');
 let temp;
 try {
  await run('npm',['run','build:backend']);
@@ -32,6 +34,7 @@ try {
  await writeFile(join(source,'.env.local'),'AI_ENABLED=false\nAI_EMULATOR_OPENAI=false\nOPENAI_LOCAL_API_KEY=\nOPENAI_API_KEY=\n');
  const config=JSON.parse(await readFile(join(root,'firebase.json'),'utf8'));
  delete config.hosting;config.functions=[{source:'functions',codebase:'catalog'}];
+ if(direct)delete config.functions;
  config.firestore.rules=join(root,config.firestore.rules);config.firestore.indexes=join(root,config.firestore.indexes);config.storage.rules=join(root,config.storage.rules);
  for(const service of Object.values(config.emulators))if(service&&typeof service==='object'){
   if(service.port)service.port+=10000;if(service.websocketPort)service.websocketPort+=10000;
@@ -40,7 +43,7 @@ try {
  const configPath=join(temp,'firebase.json');await writeFile(configPath,JSON.stringify(config));
  const suite=process.argv.includes('--ui')?`${quote(join(root,'node_modules','.bin','playwright'))} test --config playwright.admin.config.ts`:'node --test --test-concurrency=1 tests/emulators/*.test.mjs';
  const script=`cd ${quote(root)} && node scripts/seed-emulators.mjs && ${suite}`;
- await run(join(root,'node_modules','.bin','firebase'),['emulators:exec','--config',configPath,'--project','demo-rinconcito-verde-tests','--only','auth,firestore,storage,functions',script],{...childEnv,TMPDIR:runtimeTmp,TMP:runtimeTmp,TEMP:runtimeTmp,RV_TEST_FUNCTIONS_SOURCE:source,RV_TEST_FUNCTIONS_PORT:String(config.emulators.functions.port),RV_TEST_AUTH_PORT:String(config.emulators.auth.port),RV_TEST_FIRESTORE_PORT:String(config.emulators.firestore.port),RV_TEST_STORAGE_PORT:String(config.emulators.storage.port),RV_TEST_PROJECT:'demo-rinconcito-verde-tests'});
+ await run(join(root,'node_modules','.bin','firebase'),['emulators:exec','--config',configPath,'--project','demo-rinconcito-verde-tests','--only',direct?'auth,firestore,storage':'auth,firestore,storage,functions',script],{...childEnv,RV_TEST_DIRECT_HANDLERS:String(direct),TMPDIR:runtimeTmp,TMP:runtimeTmp,TEMP:runtimeTmp,RV_TEST_FUNCTIONS_SOURCE:source,RV_TEST_FUNCTIONS_PORT:String(config.emulators.functions.port),RV_TEST_AUTH_PORT:String(config.emulators.auth.port),RV_TEST_FIRESTORE_PORT:String(config.emulators.firestore.port),RV_TEST_STORAGE_PORT:String(config.emulators.storage.port),RV_TEST_PROJECT:'demo-rinconcito-verde-tests'});
 } catch(error) {
  console.error(error instanceof Error?error.message:'No se pudieron ejecutar las pruebas.');process.exitCode=1;
 } finally {

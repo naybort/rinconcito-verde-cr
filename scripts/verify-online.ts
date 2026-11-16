@@ -22,10 +22,10 @@ if (args.includes('--help')) {
  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
  const page = await context.newPage();
  async function phase(page: Page, step: number) {
-  const picker = page.getByRole('combobox', { name: 'Ir al paso', exact: true });
+  const picker = page.getByRole('combobox', { name: 'Ir a la sección', exact: true });
   if (await picker.isVisible()) { await picker.click(); await page.getByRole('option').nth(step - 1).click(); }
-  else await page.getByRole('navigation', { name: 'Pasos de la ficha', exact: true }).getByRole('button').nth(step - 1).click();
-  await expect(page.getByText(`Paso ${step} de 7 · Podés ir directamente a cualquier paso`, { exact: true })).toBeVisible();
+  else await page.getByRole('navigation', { name: 'Secciones de la ficha', exact: true }).getByRole('button').nth(step - 1).click();
+  await expect(page.getByText(`Sección ${step} de 3 · Podés volver sin perder lo escrito`, { exact: true })).toBeVisible();
  }
  async function request(kind: string, label: string, button: string) {
   stage('ai-' + kind);
@@ -68,7 +68,7 @@ if (args.includes('--help')) {
    stage('private-photo-upload');
    await page.getByRole('button', { name: 'Agregar planta', exact: true }).click();
    await page.getByRole('textbox', { name: 'Nombre de la planta', exact: true }).fill('QA online Sansevieria ' + runId);
-   await phase(page, 7);
+   await phase(page, 3);
    report.plantId = (await page.getByText(/^ID permanente:/).textContent())?.match(/ID permanente: ([a-z0-9-]+)\./)?.[1] ?? ''; record();
    if (!report.plantId) throw new Error('No se pudo registrar el ID del borrador de prueba.');
    await phase(page, 1);
@@ -82,25 +82,26 @@ if (args.includes('--help')) {
    expect(createHash('sha256').update(new Uint8Array(initialBytes)).digest('hex')).toBe(originalHash);
    report.checks.push('private-photo-upload-read'); record();
    stage('private-draft-save');
-   await phase(page, 3); await page.getByLabel('Identificación confirmada por una persona', { exact: true }).fill('Sansevieria');
-   await phase(page, 4); await page.getByLabel('Descripción', { exact: true }).fill('Borrador privado de verificación. No publicar.');
+   await phase(page, 1); await page.getByLabel('Identificación confirmada por una persona', { exact: true }).fill('Sansevieria');
+   await phase(page, 1); await page.getByLabel('Descripción', { exact: true }).fill('Borrador privado de verificación. No publicar.');
    await page.getByRole('button', { name: 'Guardar borrador', exact: true }).click();
    await expect(page.getByText('Guardado', { exact: true })).toBeVisible({ timeout: 90000 });
    report.checks.push('private-draft-saved'); record();
-   await phase(page, 3); await request('identify', 'Identificación', 'Sugerir identificación');
-   await expect(page.getByText('Nombre científico:', { exact: true })).toBeVisible();
-   await phase(page, 4); await request('content', 'Contenido y cuidados', 'Proponer contenido con fuentes');
+   await phase(page, 1); await page.getByLabel('A partir de fotos', { exact: true }).check(); await request('identify', 'Identificación', 'Sugerir identificación');
+   await expect(page.getByText('Nombre científico:', { exact: true }).first()).toBeVisible();
+   await phase(page, 1); await request('content', 'Contenido y cuidados', 'Proponer contenido con fuentes');
    await expect(page.getByLabel('Descripción', { exact: true })).toHaveValue('Borrador privado de verificación. No publicar.');
    const proposal = page.locator('details').filter({ hasText: 'Contenido y cuidados: Propuesta lista' }).first();
-   expect(await proposal.locator('a[href^="https://"]').count()).toBeGreaterThan(0);
+   // Evidence-backed citations are optional; references without evidence remain explicitly unverified.
+   await expect(proposal.getByText('Fuentes verificadas', { exact: true })).toBeVisible();
    for (const label of ['Luz', 'Riego', 'Humedad', 'Temperatura']) expect((await proposal.locator('p').filter({ hasText: new RegExp('^' + label + ':') }).first().textContent())?.trim().length).toBeGreaterThan(label.length + 1);
-   await phase(page, 5); await request('enhance', 'Mejora de fotografía', 'Proponer mejora de fotografía');
+   await phase(page, 1); await request('enhance', 'Mejora de fotografía', 'Proponer mejora de fotografía');
    const original = page.getByRole('img', { name: 'Fotografía original', exact: true });
    await expect(original).toHaveAttribute('src', /^blob:/);
    await expect(page.getByRole('img', { name: 'Fotografía propuesta por IA', exact: true })).toBeVisible();
    const bytes = await original.evaluate(async element => Array.from(new Uint8Array(await (await fetch((element as HTMLImageElement).src)).arrayBuffer())));
    expect(createHash('sha256').update(new Uint8Array(bytes)).digest('hex')).toBe(originalHash);
-   await expect(page.getByText('Fotografía elegida: original', { exact: true })).toBeVisible();
+   await expect(page.getByText('Imagen elegida: original', { exact: true })).toBeVisible();
    report.checks.push('three-real-ai-jobs', 'sources-and-care', 'draft-not-overwritten', 'original-bytes-preserved', 'proposals-not-applied'); record();
   }
   stage('admin-navigation-logout');

@@ -12,7 +12,7 @@ const messages={
  response_incomplete:'OpenAI terminó sin completar la respuesta. La propuesta no se aplicó y no se repetirá automáticamente la generación.',
  response_empty:'OpenAI respondió sin contenido utilizable. La propuesta no se aplicó y no se repetirá automáticamente la generación.',
  response_refused:'OpenAI rechazó generar esta propuesta. Revisá la foto y las instrucciones o continuá manualmente; no se aplicó ningún cambio.',
- sources_unverified:'La propuesta no contiene fuentes verificables o categorías válidas. No se aplicó al borrador.',
+ sources_unverified:'La propuesta incluye categorías que no pertenecen al catálogo. No se aplicó al borrador.',
  image_invalid:'La imagen propuesta no tiene un formato PNG válido o supera el tamaño permitido. Se conserva la fotografía original.',
  configuration:'Falta configurar el modelo IA requerido en el backend.',
  identification_required:'Confirmá la identificación antes de solicitar contenido y cuidados.',

@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Transaction } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { appCheckEnforced } from './appCheckPolicy.js';
 import { defineSecret } from 'firebase-functions/params';
@@ -9,9 +9,12 @@ import { generateAI, RetryableAIError, type AIInput } from './ai.js';
 import { safeAIFailure, type AIStage } from './aiErrors.js';
 import { canAdmitAI, claimAI, type JobState } from './jobs.js';
 import { aiRuntimeMode, assertAIEnabled, assertEmulatorIsolation, readAIKey, localFirebaseOptions } from './aiRuntime.js';
+import { normalizeSources } from './sourceTrust.js';
+import { LOADING_SETTINGS_PATH, loadingSettingsSchema, readLoadingSettings, publicLoadingSettings, loadingTipsRequestSchema } from './loadingSettings.js';
+import { generateLoadingTips } from './loadingTips.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { aiRequestSchema, draftFromRecord, draftPhotos, hasPhoto, photoId, selectAIPhoto, draftSchema, idSchema, stockItemSchema, moveStock, assertPublishable, publicSnapshot, careSchema, sourceSchema, type Draft, type DraftPhoto, type Stock } from './domain.js';
+import { presentationSchema, publicPriceOptions, selectAIPhotos, aiRequestSchema, draftFromRecord, draftPhotos, hasPhoto, photoId, selectAIPhoto, draftSchema, idSchema, stockItemSchema, moveStock, assertPublishable, publicSnapshot, careSchema, sourceSchema, type Draft, type DraftPhoto, type Stock } from './domain.js';
 const emulator=process.env.FUNCTIONS_EMULATOR==='true';
 if(emulator)assertEmulatorIsolation(process.env);
 // Explicit demo targets plus validated emulator endpoints prevent local data access to production.
@@ -21,10 +24,11 @@ const db=getFirestore();
 const region='us-central1';
 const apiKey=defineSecret('OPENAI_API_KEY');
 const options={region,maxInstances:4,concurrency:20,timeoutSeconds:60,enforceAppCheck:!emulator&&appCheckEnforced(process.env.CATALOG_APPCHECK_ENFORCED)};
-const envelope=z.object({requestId:z.string().uuid(),action:z.enum(['savePlant','review','publish','archive','restore','saveTaxonomy','inventory','presentation','requestAI']),payload:z.unknown()}).strict();
+const envelope=z.object({requestId:z.string().uuid(),action:z.enum(['savePlant','review','publish','archive','restore','saveTaxonomy','inventory','presentation','requestAI','getLoadingSettings','saveLoadingSettings','requestLoadingTips']),payload:z.unknown()}).strict();
 const versioned=z.object({id:idSchema,revision:z.number().int().nonnegative()}).strict();
 const taxonomySchema=z.object({kind:z.enum(['categories','careTemplates']),id:idSchema,name:z.string().trim().min(1).max(120),active:z.boolean(),revision:z.number().int().nonnegative(),care:careSchema.optional(),sources:z.array(sourceSchema).max(20).optional()}).strict();
 function error(message:string):never{throw new HttpsError('failed-precondition',message);}
+function stockIdentity(value:FirebaseFirestore.DocumentData|undefined,plantId:string,presentation:string){if(value&&(value.plantId!==plantId||value.presentation!==presentation))error('La clave de inventario corresponde a otra ficha o presentación. Elegí otra presentación; no se modificó el registro existente.');}
 function version(current:FirebaseFirestore.DocumentData|undefined,expected:number){if((current?.revision??0)!==expected)throw new HttpsError('aborted','Otra persona modificó este registro. Recargá antes de guardar.');}
 async function categoryCheck(tx:Transaction,ids:string[]){for(const id of ids){const snap=await tx.get(db.doc(`categories/${id}`));if(!snap.exists||!snap.data()?.active)error(`Categoría no disponible: ${id}`);}}
 async function validatePhoto(path:string,id:string){
@@ -70,7 +74,11 @@ export const adminCommand=onCall(options,async request=>{
  if(!member.data()?.active||!['admin','editor'].includes(token.role)||member.data()?.role!==token.role)throw new HttpsError('permission-denied','No tenés acceso administrativo.');
  try{
  const {action,payload,requestId}=envelope.parse(request.data);
- if(['publish','archive','restore','saveTaxonomy'].includes(action)&&token.role!=='admin')throw new HttpsError('permission-denied','Esta acción requiere administrador.');
+ if(['publish','archive','restore','saveTaxonomy','getLoadingSettings','saveLoadingSettings','requestLoadingTips'].includes(action)&&token.role!=='admin')throw new HttpsError('permission-denied','Esta acción requiere administrador.');
+ if(action==='getLoadingSettings'){
+  z.object({}).strict().parse(payload);
+  return {settings:readLoadingSettings((await db.doc(LOADING_SETTINGS_PATH).get()).data())};
+ }
  const hash=createHash('sha256').update(JSON.stringify({action,payload})).digest('hex');
  const receiptRef=db.doc(`operations/${uid}-${requestId}`);
  const prior=await receiptRef.get();
@@ -98,6 +106,8 @@ export const adminCommand=onCall(options,async request=>{
    if(new Set(references).size!==references.length)error('No repitás la misma fotografía en la galería.');
    for(const photo of photos)for(const path of [photo.originalPath,photo.approvedImagePath])if(path&&!new RegExp(`^(originals/[a-zA-Z0-9_-]+/${input.draft.id}|proposals/${input.draft.id})/[a-z0-9-]+$`).test(path))error('Referencia de foto inválida.');
    for(const photo of photos)await validateSelection(photo,input.draft.id,tx);
+   const proof=input.draft.ai.contentJobId?(await tx.get(db.doc(`aiJobs/${input.draft.ai.contentJobId}`))).data():undefined;
+   input.draft.sources=normalizeSources(input.draft.sources,current.data()?.sources,proof,{plantId:input.draft.id,revision:input.revision,confirmedName:input.draft.ai.confirmedName});
    const value={...input.draft,publishedRevision:current.data()?.publishedRevision??null,revision:input.revision+1,status:'draft',updatedAt:now,updatedBy:uid};tx.set(ref,value);result={plant:value};
   }else if(['review','publish','archive','restore'].includes(action)){
    const input=versioned.parse(payload);const ref=db.doc(`plants/${input.id}`);const snap=await tx.get(ref);if(!snap.exists)error('Ficha no encontrada.');version(snap.data(),input.revision);
@@ -109,13 +119,14 @@ export const adminCommand=onCall(options,async request=>{
    const publicRef=db.doc(`publicPlants/${input.id}`);const pub=await tx.get(publicRef);
    const status=action==='review'?'review':action==='publish'?'published':action==='archive'?'archived':'draft';
    const value={...current,publishedRevision:action==='publish'?input.revision+1:current.publishedRevision??null,status,revision:input.revision+1,updatedAt:now,updatedBy:uid};
-   tx.set(ref,value);if(action==='publish')tx.set(publicRef,publicSnapshot(draft,imageSrcs));
+   const stocks=action==='publish'&&draft.showPrice?(await tx.get(db.collection('stocks').where('plantId','==',draft.id))).docs.map(row=>row.data() as Stock):[];
+   tx.set(ref,value);if(action==='publish')tx.set(publicRef,publicSnapshot(draft,imageSrcs,stocks));
    if(action==='archive'&&pub.exists)tx.update(publicRef,{available:false});
    result={plant:value};
   }else if(action==='saveTaxonomy'){
    const input=taxonomySchema.parse(payload);if(input.kind==='careTemplates'&&!input.care)error('Completá los cuidados.');
    const ref=db.doc(`${input.kind}/${input.id}`);const snap=await tx.get(ref);version(snap.data(),input.revision);
-   const value={id:input.id,name:input.name,active:input.active,revision:input.revision+1,...(input.care?{care:input.care,sources:input.sources??[]}:{})};tx.set(ref,value);
+   const value={id:input.id,name:input.name,active:input.active,revision:input.revision+1,...(input.care?{care:input.care,sources:normalizeSources(input.sources??[],snap.data()?.sources)}:{})};tx.set(ref,value);
    // Public categories retain historical names for archived plant detail pages.
    if(input.kind==='categories')tx.set(db.doc(`publicCategories/${input.id}`),{id:input.id,name:input.name});result={taxonomy:value};
   }else if(action==='inventory'){
@@ -124,14 +135,33 @@ export const adminCommand=onCall(options,async request=>{
    const updated=[];
    for(const [i,item]of items.entries()){
     const plant=await tx.get(db.doc(`plants/${item.plantId}`));if(!plant.exists||plant.data()?.status==='archived')error('Ficha inexistente o archivada.');
-    const ref=db.doc(`stocks/${keys[i]}`);const snap=await tx.get(ref);const before=(snap.data()??{plantId:item.plantId,presentation:item.presentation,available:0,reserved:0}) as Stock;
+    const ref=db.doc(`stocks/${keys[i]}`);const snap=await tx.get(ref);stockIdentity(snap.data(),item.plantId,item.presentation);const before=(snap.data()??{plantId:item.plantId,presentation:item.presentation,available:0,reserved:0}) as Stock;
     const after=moveStock(before,item);updated.push({ref,before,after,item,index:i});
    }
    for(const row of updated){tx.set(row.ref,row.after);tx.create(db.doc(`movements/${uid}-${requestId}-${row.index}`),{...row.item,before:row.before,after:row.after,actor:uid,at:now,requestId});}result={stocks:updated.map(v=>v.after)};
   }else if(action==='presentation'){
-   const input=z.object({plantId:idSchema,presentation:idSchema,priceCRC:z.number().int().nonnegative().max(100000000).nullable(),location:z.string().max(200)}).strict().parse(payload);
-   const plant=await tx.get(db.doc(`plants/${input.plantId}`));if(!plant.exists)error('Ficha no encontrada.');
-   const ref=db.doc(`stocks/${input.plantId}--${input.presentation}`);const current=await tx.get(ref);tx.set(ref,{available:0,reserved:0,...current.data(),...input});
+   const input=presentationSchema.parse(payload);
+   const plant=await tx.get(db.doc(`plants/${input.plantId}`));if(!plant.exists||plant.data()?.status==='archived')error('Ficha inexistente o archivada.');
+   const ref=db.doc(`stocks/${input.plantId}--${input.presentation}`);const current=await tx.get(ref);stockIdentity(current.data(),input.plantId,input.presentation);
+   const value={available:0,reserved:0,...current.data(),...Object.fromEntries(Object.entries(input).filter(([,v])=>v!==undefined))} as Stock;
+   const publicRef=db.doc(`publicPlants/${input.plantId}`);const published=await tx.get(publicRef);
+   let nextPublic:Record<string,unknown>|undefined;
+   if(published.data()?.showPrice===true){
+    const stocks=(await tx.get(db.collection('stocks').where('plantId','==',input.plantId))).docs.map(row=>row.data() as Stock).filter(stock=>stock.presentation!==input.presentation);
+    const options=publicPriceOptions([...stocks,value]);nextPublic={...published.data()};delete nextPublic.priceOptions;
+    if(options.length)nextPublic.priceOptions=options;
+   }
+   tx.set(ref,value);if(nextPublic)tx.set(publicRef,nextPublic);result={stock:value};
+  }else if(action==='saveLoadingSettings'){
+   const input=loadingSettingsSchema.parse(payload);const ref=db.doc(LOADING_SETTINGS_PATH);const current=await tx.get(ref);version(current.data(),input.revision);
+   const settings={...input,revision:input.revision+1};tx.set(ref,{...settings,updatedAt:now,updatedBy:uid});result={settings};
+  }else if(action==='requestLoadingTips'){
+   assertAIEnabled(process.env);if(!process.env.OPENAI_TEXT_MODEL?.trim())error('Falta configurar el modelo de texto.');
+   const input=loadingTipsRequestSchema.parse(payload);
+   const day=now.slice(0,10);const quotaRef=db.doc(`aiQuotas/${day}-${uid}`);const globalRef=db.doc(`aiQuotas/${day}`);const quota=await tx.get(quotaRef);const global=await tx.get(globalRef);
+   if(!canAdmitAI(quota.data()?.count??0,global.data()?.count??0,emulator?'emulator':'production'))throw new HttpsError('resource-exhausted','Se alcanzó el límite diario de IA.');
+   tx.set(quotaRef,{count:(quota.data()?.count??0)+1});tx.set(globalRef,{count:(global.data()?.count??0)+1});
+   tx.create(db.doc(`aiJobs/${requestId}`),{kind:'loadingTips',plantId:'',revision:0,prompt:input.prompt,actor:uid,status:'queued',attempts:0,createdAt:now});result={jobId:requestId};
   }else if(action==='requestAI'){
    assertAIEnabled(process.env);
    const input=aiRequestSchema.parse(payload);
@@ -139,11 +169,11 @@ export const adminCommand=onCall(options,async request=>{
    if(!process.env[modelVariable]?.trim())error(`Falta configurar ${modelVariable} en el backend para ${input.kind==='enhance'?'mejorar fotografías':'identificación y contenido'}. Guardá la configuración y recargá Functions.`);
    if(input.kind==='content'&&!input.confirmedName)error('Confirmá la identificación antes de solicitar cuidados.');
    const plant=await tx.get(db.doc(`plants/${input.plantId}`));version(plant.data(),input.revision);if(!plant.exists||plant.data()?.status==='archived')error('La ficha no está disponible para IA.');
-   const photo=selectAIPhoto(draftFromRecord(plant.data()!),input.kind,input.photoId);
+   const photos=selectAIPhotos(draftFromRecord(plant.data()!),input);const photo=photos[0];
    const day=now.slice(0,10);const quotaRef=db.doc(`aiQuotas/${day}-${uid}`);const globalRef=db.doc(`aiQuotas/${day}`);const quota=await tx.get(quotaRef);const global=await tx.get(globalRef);
    if(!canAdmitAI(quota.data()?.count??0,global.data()?.count??0,emulator?'emulator':'production'))throw new HttpsError('resource-exhausted','Se alcanzó el límite diario de IA.');
    tx.set(quotaRef,{count:(quota.data()?.count??0)+1});tx.set(globalRef,{count:(global.data()?.count??0)+1});
-   tx.create(db.doc(`aiJobs/${requestId}`),{...input,actor:uid,status:'queued',attempts:0,createdAt:now,originalPath:photo.originalPath,...(input.kind==='enhance'?{photoId:photoId(photo),baseApprovedImagePath:photo.approvedImagePath}:{}),nameHint:plant.data()!.name});result={jobId:requestId};
+   tx.create(db.doc(`aiJobs/${requestId}`),{...input,actor:uid,status:'queued',attempts:0,createdAt:now,originalPath:photo?.originalPath??'',originalPaths:photos.map(photo=>photo.originalPath),...(input.kind==='enhance'?{photoId:photoId(photo!),baseApprovedImagePath:photo!.approvedImagePath}:{}),nameHint:plant.data()!.name});result={jobId:requestId};
   }
   tx.create(db.doc(`audit/${uid}-${requestId}`),{...audit,target:typeof payload==='object'&&payload?JSON.parse(JSON.stringify(payload)):null});
   tx.create(receiptRef,{hash,result,createdAt:now});return result;
@@ -166,16 +196,26 @@ export const processAI=onDocumentCreated({document:'aiJobs/{jobId}',region,...(e
  let stage:AIStage='access';
  try{
   const member=await db.doc(`adminUsers/${job.actor}`).get();if(!member.data()?.active)throw new Error('Acceso revocado.');
-  stage='photo';
-  if(job.kind==='enhance'&&job.photoId){
-   const plant=await db.doc(`plants/${job.plantId}`).get();
-   if(!plant.exists||plant.data()?.status==='archived')throw new Error('La ficha ya no está disponible.');
-   const photo=selectAIPhoto(draftFromRecord(plant.data()!),job.kind,job.photoId);
-   if(photo.originalPath!==job.originalPath)throw new Error('La fotografía original cambió.');
+  const config={key:readAIKey(process.env,()=>apiKey.value()),textModel:process.env.OPENAI_TEXT_MODEL?.trim()||'',imageModel:process.env.OPENAI_IMAGE_MODEL?.trim()||'',requestId:event.params.jobId};
+  if(job.kind==='loadingTips'){
+   if(member.data()?.role!=='admin')throw new Error('La configuración requiere un administrador activo.');
+   stage='provider';const result=await generateLoadingTips(loadingTipsRequestSchema.parse({prompt:job.prompt}),config);
+   stage='result';await ref.update({status:'ready',proposal:result.proposal,usage:result.usage,completedAt:new Date().toISOString()});return;
   }
-  const {data,mime}=await validatePhoto(job.originalPath,job.plantId);
+  stage='photo';
+  const plant=await db.doc(`plants/${job.plantId}`).get();
+  if(!plant.exists||plant.data()?.status==='archived')throw new Error('La ficha ya no está disponible.');
+  const draft=draftFromRecord(plant.data()!);
+  const paths:Array<string>=Array.isArray(job.originalPaths)?job.originalPaths:[job.originalPath];
+  if(paths.length>4||paths.some(path=>typeof path!=='string'||!draftPhotos(draft).some(photo=>photo.originalPath===path)))throw new Error('Las fotografías seleccionadas cambiaron.');
+  if(!paths.length&&job.inputMode!=='name')throw new Error('Falta la fotografía original.');
+  if(job.kind==='enhance'){
+   const photo=selectAIPhoto(draft,job.kind,job.photoId);
+   if(paths.length!==1||photo.originalPath!==paths[0])throw new Error('La fotografía original cambió.');
+  }
+  const photos=await Promise.all(paths.map(path=>validatePhoto(path,job.plantId)));
   stage='catalog';const cats=await db.collection('categories').where('active','==',true).get();
-  stage='provider';const result=await generateAI(job as AIInput,{data,mime},cats.docs.map(d=>d.id),{key:readAIKey(process.env,()=>apiKey.value()),textModel:process.env.OPENAI_TEXT_MODEL?.trim()||'',imageModel:process.env.OPENAI_IMAGE_MODEL?.trim()||'',requestId:event.params.jobId});
+  stage='provider';const result=await generateAI(job as AIInput,photos.length?photos.map(({data,mime})=>({data,mime})):null,cats.docs.map(d=>d.id),config);
   stage='result';if(result.image){
    const imagePath=`proposals/${job.plantId}/${event.params.jobId}`;
    await getStorage().bucket().file(imagePath).save(result.image,{resumable:false,metadata:{contentType:'image/png'}});
@@ -187,4 +227,13 @@ export const processAI=onDocumentCreated({document:'aiJobs/{jobId}',region,...(e
   console.warn('AI job failed',{jobId:event.params.jobId,stage,code:failure.code,...failure.details});
   if(transient)throw new Error('Retry AI job: '+failure.code,{cause:e});
  }
+});
+
+// This endpoint exposes only the approved public loading copy; private settings remain server-only.
+export const getPublicLoadingSettings=onRequest({region,maxInstances:2,concurrency:20,timeoutSeconds:15,cors:emulator?true:['https://rinconcito-verde-cr.web.app','https://rinconcito-verde-cr.firebaseapp.com']},async(request,response)=>{
+ if(request.method!=='GET'){response.set('Allow','GET').status(405).end();return;}
+ try{
+  const settings=(await db.doc(LOADING_SETTINGS_PATH).get()).data();
+  response.set('Cache-Control','public, max-age=60, s-maxage=60').status(200).json(publicLoadingSettings(settings));
+ }catch{response.set('Cache-Control','no-store').status(503).json({error:'No se pudo cargar la configuración pública.'});}
 });

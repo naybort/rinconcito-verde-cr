@@ -5,6 +5,7 @@ import { safeAIFailure,RetryableAIError } from '../functions/src/aiErrors';
 import { identificationSchema,proposalSchema } from '../functions/src/domain';
 const date='2026-11-12';const secret='test-sensitive-response-marker';
 const proposal={name:'Pastora',description:'Cuidados básicos',categoryIds:['interior'],care:{light:'Luz indirecta brillante.',watering:'Regá cuando se seque la superficie.',humidity:'Humedad ambiental.',temperature:'Protegé del frío.'},warnings:'',sources:[{title:'Fuente de prueba',url:'https://example.test/botany',accessedAt:date}],uncertainty:''};
+const verifiedProposal={...proposal,categorySuggestions:[],sources:proposal.sources.map(source=>({...source,verification:'verified'}))};
 const message=(text=JSON.stringify(proposal))=>({type:'message',content:[{type:'output_text',text,annotations:[{type:'url_citation',url:proposal.sources[0].url}]}]});
 const body=()=>({status:'completed',output:[message()]});
 const parse=(value:unknown)=>parseTextResponse(value,'content',['interior'],date);
@@ -22,17 +23,17 @@ it('acepta mensajes completos con razonamiento y metadatos heterogéneos sin con
   {type:'reasoning',content:null,summary:[{type:'summary_text',text:secret}]},
   {type:'web_search_call',content:null,action:{type:'search',sources:[{type:'url',url:proposal.sources[0].url},{type:'unknown',title:secret}]}},
   {type:'message',content:[{type:'output_text',text:text.slice(0,80),annotations:null},{type:'output_text',text:text.slice(80),annotations:[{type:'file_citation',url:null}]}]}
- ]});expect(result.proposal).toEqual(proposal);
+ ]});expect(result.proposal).toEqual(verifiedProposal);
 });
 it('acepta JSON completo con espacios o cercas anteriores sin inventar ni reparar valores',()=>{
- expect(parse({status:'completed',output:[message('\n  ```json\n'+JSON.stringify(proposal)+'\n```\n')]}).proposal).toEqual(proposal);
+ expect(parse({status:'completed',output:[message('\n  ```json\n'+JSON.stringify(proposal)+'\n```\n')]}).proposal).toEqual(verifiedProposal);
  const error=failure({status:'completed',output:[message('Texto previo '+JSON.stringify(proposal))]});expect(error.details).toMatchObject({responseStage:'json',reason:'invalid_json'});
 });
 it('separa comentarios de progreso de la respuesta final al usar búsqueda web',()=>{
  const commentary={...message('Voy a consultar las fuentes para esta planta.'),phase:'commentary'};
  const final={...message(),phase:'final_answer'};
- expect(parse({status:'completed',output:[commentary,{type:'web_search_call',action:{sources:[]}},final]}).proposal).toEqual(proposal);
- expect(parse({status:'completed',output:[message('Progreso anterior sin fase'),message()]}).proposal).toEqual(proposal);
+ expect(parse({status:'completed',output:[commentary,{type:'web_search_call',action:{sources:[]}},final]}).proposal).toEqual(verifiedProposal);
+ expect(parse({status:'completed',output:[message('Progreso anterior sin fase'),message()]}).proposal).toEqual(verifiedProposal);
  expect(failure({status:'completed',output:[{...message(),phase:'commentary'}]}).code).toBe('response_empty');
  expect(failure({status:'completed',output:[{...final,status:'incomplete'}]}).code).toBe('response_incomplete');
 });
@@ -49,11 +50,21 @@ it('el diagnóstico señala campos conocidos, sin valores ni claves desconocidas
  const error=failure({status:'completed',output:[message(JSON.stringify({...proposal,care:{...proposal.care,watering:null},[secret]:secret}))]});
  expect(error.code).toBe('response_invalid');expect(error.details).toMatchObject({responseStage:'proposal',reason:'schema_mismatch'});expect(error.details.fields).toContain('care.watering');expect(JSON.stringify(error)).not.toContain(secret);
 });
-it('mantiene validación local de límites, fuentes y campos comerciales aun con salida estructurada',()=>{
+it('mantiene validación local de límites, categorías y campos comerciales aun con salida estructurada',()=>{
  for(const change of [{warnings:[]},{description:'x'.repeat(5001)},{stock:10,price:500,publish:true}])expect(failure({status:'completed',output:[message(JSON.stringify({...proposal,...change}))]}).code).toBe('response_invalid');
- const uncited=body();uncited.output[0].content[0].annotations=[];expect(failure(uncited).code).toBe('sources_unverified');
- expect(failure({status:'completed',output:[{type:'unknown_tool',action:{sources:[{url:proposal.sources[0].url}]}},...uncited.output]}).code).toBe('sources_unverified');
- expect(failure({status:'completed',output:[message(JSON.stringify({...proposal,sources:[{...proposal.sources[0],accessedAt:'2020-01-01'}]}))]}).code).toBe('sources_unverified');
+ expect(failure({status:'completed',output:[message(JSON.stringify({...proposal,categoryIds:['inventada']}))]}).code).toBe('sources_unverified');
+});
+it('conserva referencias de texto sin fabricar verificación ni URLs, incluso con etiquetas falsificadas',()=>{
+ const uncited=body();uncited.output[0].content[0].annotations=[];
+ expect(parse(uncited).proposal).toMatchObject({sources:[{title:proposal.sources[0].title,verification:'unverified'}]});
+ expect(parse({status:'completed',output:[{type:'unknown_tool',action:{sources:[{url:proposal.sources[0].url}]}},...uncited.output]}).proposal).toMatchObject({sources:[{title:proposal.sources[0].title,verification:'unverified'}]});
+ const forged={...proposal,sources:[{title:'Guía https://inventada.test/cuidado www.falsa.test',url:'https://inventada.test/cuidado',verification:'verified'}]};
+ expect(parse({status:'completed',output:[message(JSON.stringify(forged))]}).proposal).toMatchObject({sources:[{title:'Guía',verification:'unverified'}]});
+ expect(parse({status:'completed',output:[message(JSON.stringify({...proposal,sources:[{title:'Observación para revisar'}]}))]}).proposal).toMatchObject({sources:[{title:'Observación para revisar',verification:'unverified'}]});
+ expect(parse({status:'completed',output:[message(JSON.stringify({...proposal,sources:[]}))]}).proposal).toMatchObject({sources:[]});
+});
+it('la fecha verificada viene del procesamiento y las categorías sugeridas no se convierten en IDs',()=>{
+ expect(parse({status:'completed',output:[message(JSON.stringify({...proposal,categorySuggestions:['Follaje tropical'],sources:[{...proposal.sources[0],accessedAt:'2020-01-01',verification:'unverified'}]}))]}).proposal).toEqual({...verifiedProposal,categorySuggestions:['Follaje tropical']});
 });
 it('no expone JSON roto ni repite solicitudes para intentar reparar la respuesta',async()=>{
  const transport=vi.fn<typeof fetch>().mockResolvedValue(new Response(secret));

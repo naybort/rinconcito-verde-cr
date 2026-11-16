@@ -3,7 +3,7 @@ import { collection, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { firebase } from '../../lib/firebase';
 import type { PlantRecord, Stock, Taxonomy } from '../../../functions/src/domain';
-export type Job={id:string;plantId:string;revision:number;status:string;kind:string;error?:string;imagePath?:string;proposal?:Record<string,unknown>;additionalInstructions?:string;originalPath?:string;photoId?:string;baseApprovedImagePath?:string;createdAt?:string};
+export type Job={id:string;plantId:string;revision:number;status:string;kind:string;error?:string;imagePath?:string;proposal?:Record<string,unknown>;additionalInstructions?:string;originalPath?:string;originalPaths?:string[];inputMode?:'photos'|'name';nameHint?:string;confirmedName?:string;photoId?:string;baseApprovedImagePath?:string;createdAt?:string};
 export type Movement={id:string;plantId:string;presentation:string;type:string;quantity:number;reason:string;actor:string;at:string};
 export function useAdmin(){
  const [session,setSession]=useState<{user:User;role:'admin'|'editor'}|null>(null);

@@ -1,0 +1,65 @@
+{
+  "source": "assets/source/rinconcito-original.png",
+  "originalFileName": "El Rinconcito Verde_ Suculentas y Plantas.png",
+  "sourceSha256": "bfafae49f455e39ebe84511e2ac45facd355463dbea902aa390681ddd2ebbf79",
+  "sourceDimensions": [
+    1254,
+    1254
+  ],
+  "output": "public/rinconcito-house.png",
+  "outputSha256": "78a8ffc65c332e34a478163994575df44f80facd3fa7a33baed56af9cf6b6774",
+  "outputDimensions": [
+    530,
+    530
+  ],
+  "operation": "Lossless polygon crop and transparent square padding; retained pixels unchanged, no resampling or AI.",
+  "crop": {
+    "sourceWidth": 1254,
+    "sourceHeight": 1254,
+    "left": 386,
+    "top": 124,
+    "width": 484,
+    "height": 530,
+    "canvas": 530,
+    "polygon": [
+      [
+        627,
+        129
+      ],
+      [
+        864,
+        283
+      ],
+      [
+        864,
+        650
+      ],
+      [
+        470,
+        650
+      ],
+      [
+        470,
+        642
+      ],
+      [
+        426,
+        642
+      ],
+      [
+        426,
+        650
+      ],
+      [
+        390,
+        650
+      ],
+      [
+        390,
+        283
+      ]
+    ]
+  },
+  "reproduce": "node scripts/derive-brand-assets.ts",
+  "verify": "node scripts/derive-brand-assets.ts --check"
+}

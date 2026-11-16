@@ -1,5 +1,5 @@
 export type PlantImage = { src: string; alt: string };
-export type Plant = { images?:PlantImage[]; available?:boolean;warnings?:string;sources?:{title:string;url:string;accessedAt:string}[]; id: string; name: string; categoryIds: string[]; image: PlantImage; description?: string; care?: { light: string; watering: string; humidity: string; temperature: string }; detailImage?: PlantImage };
+export type Plant = { images?:PlantImage[]; available?:boolean;warnings?:string;sources?:{title:string;url?:string;accessedAt?:string;verification?:'verified'|'unverified'}[];showPrice?:boolean;priceOptions?:{presentation:string;potNumber?:string;priceCRC:number}[]; id: string; name: string; categoryIds: string[]; image: PlantImage; description?: string; care?: { light: string; watering: string; humidity: string; temperature: string }; detailImage?: PlantImage };
 export type Category = { id: string; name: string };
 export type Catalog = { plants: Plant[]; categories: Category[] };
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);

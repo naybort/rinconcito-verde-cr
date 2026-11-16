@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
 import { readFileSync } from 'node:fs';
-import { createLabelSvg, labelLines, labelQrOptions } from '../src/features/admin/labelTemplate';
+import { createLabelSvg, labelFormats, labelLines, labelQrOptions } from '../src/features/admin/labelTemplate';
 import { photoLayout } from '../src/shared/brand/photoExport';
 
+const houseIcon = 'data:image/png;base64,' + readFileSync('public/rinconcito-house.png').toString('base64');
 const icon = 'data:image/png;base64,' + readFileSync('public/rinconcito-icon.png').toString('base64');
 const qrFromSvg = (svg: string) => {
  const embedded = [...svg.matchAll(/href="(data:image\/png;base64,[^"]+)"/g)].at(-1)![1];
@@ -42,4 +43,34 @@ it('la marca queda fuera del rectángulo de foto en horizontal, vertical y cuadr
   expect(layout.height - layout.strip).toBe(layout.photoHeight + 2 * layout.inset);
   expect(Math.max(layout.photoWidth, layout.photoHeight)).toBeLessThanOrEqual(2400);
  }
+});
+
+describe('variante casita y contacto', () => {
+ for (const id of ['sansevieria', 'a'.repeat(80)]) {
+  it('conserva la URL y los datos confirmados para ' + id, async () => {
+   const plant = { id, name: 'Planta ornamental '.repeat(8).slice(0, 120) };
+   const svg = await createLabelSvg(plant, 70, 120, houseIcon, 'house');
+   const png = qrFromSvg(svg), compact = qrFromSvg(await createLabelSvg(plant, 50, 45, icon));
+   expect(jsQR(new Uint8ClampedArray(png.data), png.width, png.height)?.data).toBe('https://rinconcito-verde-cr.web.app/#/plantas/' + id);
+   expect(png.data).toEqual(compact.data);
+   expect(svg).toContain(houseIcon);
+   expect(svg).toContain('width="34" height="34"');
+   expect(svg).toContain('Cartago, Cervantes, El Descanso');
+   expect(svg).toContain('WhatsApp 71160290');
+   expect(svg).toContain('Facebook: El Rinconcito Verde C.R.');
+   expect(svg).toContain('Servicio a domicilio o por');
+   expect(svg).toContain('Correos de Costa Rica a todo el país');
+   const rendered = new DOMParser().parseFromString(svg, 'image/svg+xml');
+   for (const text of rendered.querySelectorAll('text')) expect(Number(text.getAttribute('font-size'))).toBeGreaterThanOrEqual(2.2);
+   expect(svg).not.toContain('href="/');
+  });
+ }
+ it('mantiene la compacta predeterminada y rechaza casita demasiado pequeña', async () => {
+  const plant = { id: 'plant', name: '<Planta> & "Verde"' };
+  expect(labelFormats.compact).toMatchObject({ width: 60, height: 50 });
+  expect(await createLabelSvg(plant, 60, 50, icon)).toEqual(await createLabelSvg(plant, 60, 50, icon, 'compact'));
+  expect(await createLabelSvg(plant, 70, 120, houseIcon, 'house')).toContain('&lt;Planta&gt;');
+  await expect(createLabelSvg(plant, 69, 120, houseIcon, 'house')).rejects.toThrow();
+  await expect(createLabelSvg(plant, 70, 119, houseIcon, 'house')).rejects.toThrow();
+ });
 });
