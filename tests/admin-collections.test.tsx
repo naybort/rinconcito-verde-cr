@@ -95,13 +95,13 @@ describe('colecciones administrativas', () => {
   fireEvent.change(screen.getByLabelText('Copias por ficha'), { target: { value: '2' } });
   await userEvent.selectOptions(screen.getByLabelText('Diseño de etiqueta'), 'house');
   await waitFor(() => expect(screen.getByRole('button', { name: 'Imprimir / guardar PDF' })).toBeEnabled());
-  expect(screen.getByLabelText('Alto (mm)')).toHaveValue(80);
+  expect(screen.getByLabelText('Alto (mm)')).toHaveValue(120);
   expect(screen.getByLabelText('Copias por ficha')).toHaveValue(2);
   expect(document.querySelectorAll('.plant-label')).toHaveLength(2);
-  expect(createLabelSvg).toHaveBeenCalledWith({ id: 'planta-1', name: 'Planta 1' }, 60, 80, 'icon', 'house');
+  expect(createLabelSvg).toHaveBeenCalledWith({ id: 'planta-1', name: 'Planta 1' }, 80, 120, 'icon', 'house');
   await userEvent.click(screen.getByRole('button', { name: 'Descargar etiqueta de Planta 1 · planta-1' }));
   expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'etiqueta-planta-1-casita.svg');
-  fireEvent.change(screen.getByLabelText('Alto (mm)'), { target: { value: '79' } });
+  fireEvent.change(screen.getByLabelText('Alto (mm)'), { target: { value: '119' } });
   expect(screen.getByRole('button', { name: 'Imprimir / guardar PDF' })).toBeDisabled();
   await userEvent.selectOptions(screen.getByLabelText('Diseño de etiqueta'), 'compact');
   await waitFor(() => expect(screen.getByRole('button', { name: 'Imprimir / guardar PDF' })).toBeEnabled());

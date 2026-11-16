@@ -58,6 +58,7 @@ export function Labels({ plants }: { plants: PlantRecord[] }) {
    <TextField sx={{ minWidth: 150, flex: { sm: '1 1 150px' } }} label="Alto (mm)" type="number" value={height} error={!validSize} helperText={`De ${format.minHeight} a 150 mm`} slotProps={{ htmlInput: { min: format.minHeight, max: 150, step: 1 } }} onChange={e => setHeight(e.target.value)}/>
    <Button variant="contained" disabled={!ready} onClick={() => window.print()}>Imprimir / guardar PDF</Button>
   </Stack>
+  {variant === 'house' && <Alert severity="info" className="no-print">Casita y contacto incluye ubicación, WhatsApp, Facebook y entregas. Tamaño recomendado: 80 × 120 mm; mínimo: 70 × 120 mm para conservar la legibilidad. El QR abre la ficha de cada planta.</Alert>}
   <Typography className="no-print" variant="body2" color="text.secondary">Imprimí al 100 % / tamaño real, sin encabezados ni pies de página. Probá una etiqueta con tu teléfono antes de imprimir un lote. El QR incluye un borde blanco que debe quedar libre.</Typography>
   {error && <Alert className="no-print" severity="error" action={<Button onClick={() => setRetry(n => n + 1)}>Reintentar</Button>}>{error}</Alert>}
   {!error && printable.length > 0 && validSize && validCopies && !ready && <Typography role="status" className="no-print">Preparando etiquetas…</Typography>}

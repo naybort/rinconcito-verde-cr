@@ -111,20 +111,56 @@ for (const width of [320, 1280]) {
   await page.getByLabel('Diseño de etiqueta', { exact: true }).selectOption('house');
   const print = page.getByRole('button', { name: 'Imprimir / guardar PDF' });
   await expect(print).toBeEnabled();
-  await expect(page.getByLabel('Alto (mm)', { exact: true })).toHaveValue('80');
+  await expect(page.getByLabel('Alto (mm)', { exact: true })).toHaveValue('120');
   expect(decode(await page.locator('.plant-label').first().screenshot())).toBe('https://rinconcito-verde-cr.web.app/#/plantas/sansevieria');
   const waiting = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Descargar etiqueta de Sansevieria · sansevieria', exact: true }).click();
   const download = await waiting;
   expect(download.suggestedFilename()).toBe('etiqueta-sansevieria-casita.svg');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await download.saveAs(`test-results/etiqueta-casita-${width}.svg`);
   const svg = await readFile(`test-results/etiqueta-casita-${width}.svg`, 'utf8');
   expect(svg).toContain('Cartago, Cervantes, El Descanso');
-  expect(svg).toContain('WhatsApp +506 7116 0290');
+  expect(svg).toContain('WhatsApp 71160290');
+  expect(svg).toContain('Facebook: El Rinconcito Verde C.R.');
+  expect(svg).toContain('Servicio a domicilio o por');
+  expect(svg).toContain('Correos de Costa Rica a todo el país');
   expect(svg).not.toContain('href="/');
+  const proof = await page.context().newPage();
+  async function checkProof(source: string, mm: number) {
+   await proof.setContent(`<style>@page {size: ${mm}mm 120mm; margin: 0} body {margin:0} svg {display:block}</style>${source}`);
+   const boxes = await proof.locator('svg text').evaluateAll(texts => texts.map(text => {
+    const b = (text as SVGGraphicsElement).getBBox();
+    return { text: text.textContent, x: b.x, y: b.y, right: b.x + b.width, bottom: b.y + b.height };
+   }));
+   for (const box of boxes) {
+    expect(box.x, box.text || '').toBeGreaterThanOrEqual(2.5);
+    expect(box.right, box.text || '').toBeLessThanOrEqual(mm - 2.5);
+    expect(box.y, box.text || '').toBeGreaterThanOrEqual(2.5);
+    expect(box.bottom, box.text || '').toBeLessThanOrEqual(117.5);
+    expect(box.bottom <= 30 || box.y >= 64, box.text || '').toBe(true);
+   }
+  }
+  await checkProof(svg, 80);
+  await proof.pdf({path:`test-results/etiqueta-contacto-${width}.pdf`,width:'80mm',height:'120mm',printBackground:true,displayHeaderFooter:false});
+  await proof.locator('svg').screenshot({path:`test-results/etiqueta-contacto-${width}.png`});
+  await page.getByLabel('Ancho (mm)', { exact: true }).fill('70');
+  await page.getByRole('checkbox', { name: /^Planta de nombre largo/ }).check();
+  await expect(page.locator('.plant-label')).toHaveCount(2);
+  const longSource = await page.locator('.plant-label img').last().getAttribute('src');
+  await checkProof(decodeURIComponent(longSource!.split(',').slice(1).join(',')), 70);
+  expect(decode(await proof.locator('svg').screenshot())).toBe('https://rinconcito-verde-cr.web.app/#/plantas/' + 'a'.repeat(80));
+  await proof.pdf({path:`test-results/etiqueta-contacto-larga-${width}.pdf`,width:'70mm',height:'120mm',printBackground:true,displayHeaderFooter:false});
+  await proof.close();
+  await page.getByLabel('Copias por ficha', { exact: true }).fill('4');
+  await expect(page.locator('.plant-label')).toHaveCount(8);
+  await page.emulateMedia({media:'print'});
+  await expect(page.getByRole('navigation')).not.toBeVisible();
+  await page.pdf({path:`test-results/etiquetas-contacto-A4-${width}.pdf`,format:'A4',printBackground:true,displayHeaderFooter:false,scale:1});
+  await page.emulateMedia({media:'screen'});
   await page.screenshot({ path: `test-results/etiquetas-casita-${width}.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByLabel('Alto (mm)', { exact: true }).fill('79');
+  await page.getByLabel('Alto (mm)', { exact: true }).fill('119');
   await expect(print).toBeDisabled();
   await page.getByLabel('Diseño de etiqueta', { exact: true }).selectOption('compact');
   await expect(print).toBeEnabled();
